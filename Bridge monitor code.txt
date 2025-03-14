@@ -123,10 +123,10 @@ function updateBridgingData() {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
   const liFIChains = [8453, 10, 59144, 80094, 5000, 167000];
   const orbiterChains = [8453, 10, 59144, 167000];
-  
+
   // Adding headers to the spreadsheet
   sheet.clear();
-  sheet.appendRow(['From Chain', 'To Chain', 'Bridging Amount (USDC)', 'Fee (USD)', 'Est. Bridge Time (s)', 'Bridge Name', 'Slippage (USD)', 'Received Amount (USDC)', 'Link']);
+  sheet.appendRow(['Timestamp', 'From Chain', 'To Chain', 'Bridging Amount (USDC)', 'Fee (USD)', 'Est. Bridge Time (s)', 'Bridge Name', 'Slippage (USD)', 'Received Amount (USDC)', 'Link']);
 
   
   // LiFi update block
@@ -135,6 +135,7 @@ function updateBridgingData() {
     for (const toChainId of liFIChains) {
       if (fromChainId !== toChainId) {
         Logger.log(`🔄 Route: fromChainId=${getChainName(fromChainId)}, toChainId=${getChainName(toChainId)}`);
+        const currentTime = new Date().toUTCString();
 
         const fromChainName = getChainName(fromChainId);
         const toChainName = getChainName(toChainId);
@@ -154,6 +155,7 @@ function updateBridgingData() {
           const liFiTimeFormatted = liFiTime.toFixed(4);
 
           sheet.appendRow([
+            currentTime,
             fromChainName,
             toChainName,
             amount,
@@ -177,7 +179,7 @@ function updateBridgingData() {
     for (const toChainId of orbiterChains) {
       if (fromChainId !== toChainId) {
         Logger.log(`🔄 Route: fromChainId=${getChainName(fromChainId)}, toChainId=${getChainName(toChainId)}`);
-
+        const currentTime = new Date().toUTCString();
         const fromChainName = getChainName(fromChainId);
         const toChainName = getChainName(toChainId);
 
@@ -194,6 +196,7 @@ function updateBridgingData() {
           const orbiterRecievedAmount = orbiterQuote.receivedAmount;
 
           sheet.appendRow([
+            currentTime,
             fromChainName,
             toChainName,
             amount,
