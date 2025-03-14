@@ -7,6 +7,8 @@ const LIFI_USDC_ADDRESSES = {
   80094: "0x549943e04f40284185054145c6E4e9568C1D3241", // Berachain
   5000: "0x09Bc4E0D864854c6aFB6eB9A9cdF58aC190D0dF9", // Mantle
   167000: "0x07d83526730c7438048D55A4fc0b850e2aaB6f0b", // Taiko
+  2741: "0x84A71ccD554Cc1b02749b35d22F684CC8ec987e1", // Abstract
+  122: "0x620fd5fa44BE6af63715Ef4E65DDFA0387aD13F5", // Fuse
 };
 
 const ORBITER_USDC_ADDRESSES = {
@@ -14,6 +16,7 @@ const ORBITER_USDC_ADDRESSES = {
   10: "0xd9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA", // Optimism (Orbiter-specific)
   59144: "0xd9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA", // Linea (Orbiter-specific)
   167000: "0x07d83526730c7438048D55A4fc0b850e2aaB6f0b", // Taiko
+  122: "0x28c3d1cd466ba22f6cae51b1a4692a831696391a", // Fuse
 };
 
 const FROM_ADDRESS = "0x7075f3b9C1c9fB099D000Ebb7676B1A972c2348E";
@@ -121,8 +124,8 @@ function getOrbiterQuote(fromChainId, toChainId, amount) {
 
 function updateBridgingData() {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  const liFIChains = [8453, 10, 59144, 80094, 5000, 167000];
-  const orbiterChains = [8453, 10, 59144, 167000];
+  const liFIChains = [8453, 10, 59144, 80094, 5000, 167000, 2741, 122];
+  const orbiterChains = [8453, 10, 59144, 167000, 122];
 
   // Adding headers to the spreadsheet
   sheet.clear();
@@ -231,6 +234,8 @@ function getChainName(chainId) {
     80094: "Berachain",
     5000: "Mantle",
     167000: "Taiko",
+    2741: "Abstract",
+    122: "Fuse",
   };
 
   if (!chainId) {
