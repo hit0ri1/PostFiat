@@ -129,7 +129,7 @@ function updateBridgingData() {
 
   // Adding headers to the spreadsheet
   sheet.clear();
-  sheet.appendRow(['Timestamp', 'From Chain', 'To Chain', 'Bridging Amount (USDC)', 'Fee (USD)', 'Est. Bridge Time (s)', 'Bridge Name', 'Slippage (USD)', 'Received Amount (USDC)', 'Link']);
+  sheet.appendRow(['Timestamp', 'From Chain', 'To Chain', 'Bridging Amount (USDC)', 'Fee (USD)', 'Est. Bridge Time (s)', 'Bridge Name', 'Slippage (USD)', 'Received Amount (USDC)', 'Link', `Est PFT points`]);
 
   
   // LiFi update block
@@ -168,6 +168,7 @@ function updateBridgingData() {
             liFiSlippage,
             liFiReceivedAmount,
             `https://jumper.exchange/?fromAmount=${amount}&fromChain=${fromChainId}&fromToken=${LIFI_USDC_ADDRESSES[fromChainId]}&toChain=${toChainId}&toToken=${LIFI_USDC_ADDRESSES[toChainId]}`,
+            80,
           ]);
 
           Logger.log(`✅ Data written for route: ${fromChainName} -> ${toChainName} with amount: ${amount}`);
