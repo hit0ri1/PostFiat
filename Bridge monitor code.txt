@@ -210,6 +210,7 @@ function updateBridgingData() {
             orbiterSlippage,
             orbiterRecievedAmount,
             `https://orbiter.finance/en?src_chain=${fromChainId}&tgt_chain=${toChainId}&src_token=USDC`,
+            80,
           ]);
 
           Logger.log(`✅ Data written for route: ${fromChainName} -> ${toChainName} with amount: ${amount}`);
