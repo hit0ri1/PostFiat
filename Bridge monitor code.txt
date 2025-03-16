@@ -25,6 +25,17 @@ const TO_ADDRESS = "0x7075f3b9C1c9fB099D000Ebb7676B1A972c2348E";
 // Different bridging amounts to test (10, 100, 1000 USDC)
 const BRIDGING_AMOUNTS = [1, 10, 100, 1000];
 
+const CHAIN_SCORES = {
+  8453: { airdrop: 80, devActivity: 70, costEfficiency: 90 }, // Base
+  10: { airdrop: 70, devActivity: 85, costEfficiency: 80 }, // Optimism
+  59144: { airdrop: 60, devActivity: 75, costEfficiency: 70 }, // Linea
+  80094: { airdrop: 90, devActivity: 60, costEfficiency: 95 }, // Berachain
+  5000: { airdrop: 65, devActivity: 65, costEfficiency: 80 }, // Mantle
+  167000: { airdrop: 75, devActivity: 80, costEfficiency: 70 }, // Taiko
+  2741: { airdrop: 50, devActivity: 50, costEfficiency: 60 }, // Abstract
+  122: { airdrop: 55, devActivity: 45, costEfficiency: 70 }, // Fuse
+};
+
 const HEADERS = {
   "User-Agent": "Mozilla/5.0",
   "Accept": "application/json",
@@ -129,7 +140,7 @@ function updateBridgingData() {
 
   // Adding headers to the spreadsheet
   sheet.clear();
-  sheet.appendRow(['Timestamp', 'From Chain', 'To Chain', 'Bridging Amount (USDC)', 'Fee (USD)', 'Est. Bridge Time (s)', 'Bridge Name', 'Slippage (USD)', 'Received Amount (USDC)', 'Link', `Est PFT points`]);
+  sheet.appendRow(['Timestamp', 'From Chain', 'To Chain', 'Bridging Amount (USDC)', 'Fee (USD)', 'Est. Bridge Time (s)', 'Bridge Name', 'Slippage (USD)', 'Received Amount (USDC)', 'Link', `Est PFT points`, `Chain Opportunity Index`,]);
 
   
   // LiFi update block
@@ -156,6 +167,7 @@ function updateBridgingData() {
           const liFiSlippage = liFiQuote.slippageUSD;
           const liFiReceivedAmount = liFiQuote.toAmount;
           const liFiTimeFormatted = liFiTime.toFixed(4);
+          const opportunityIndex = calculateOpportunityIndex(fromChainId);
 
           sheet.appendRow([
             currentTime,
@@ -169,6 +181,7 @@ function updateBridgingData() {
             liFiReceivedAmount,
             `https://jumper.exchange/?fromAmount=${amount}&fromChain=${fromChainId}&fromToken=${LIFI_USDC_ADDRESSES[fromChainId]}&toChain=${toChainId}&toToken=${LIFI_USDC_ADDRESSES[toChainId]}`,
             80,
+            opportunityIndex,
           ]);
 
           Logger.log(`✅ Data written for route: ${fromChainName} -> ${toChainName} with amount: ${amount}`);
@@ -198,6 +211,7 @@ function updateBridgingData() {
           const orbiterTime = orbiterQuote.time;
           const orbiterSlippage = orbiterQuote.slippageUSD;
           const orbiterRecievedAmount = orbiterQuote.receivedAmount;
+          const opportunityIndex = calculateOpportunityIndex(fromChainId);
 
           sheet.appendRow([
             currentTime,
@@ -211,6 +225,7 @@ function updateBridgingData() {
             orbiterRecievedAmount,
             `https://orbiter.finance/en?src_chain=${fromChainId}&tgt_chain=${toChainId}&src_token=USDC`,
             80,
+            opportunityIndex,
           ]);
 
           Logger.log(`✅ Data written for route: ${fromChainName} -> ${toChainName} with amount: ${amount}`);
@@ -218,8 +233,6 @@ function updateBridgingData() {
       }
     }
   }
-
-
 
   setColumnAlignment(sheet);
 
@@ -266,4 +279,10 @@ function setColumnAlignment(sheet) {
       sheet.getRange(1, col, sheet.getLastRow(), 1).setHorizontalAlignment("left");  // Align links to the left
     }
   }
+}
+
+function calculateOpportunityIndex(chainId) {
+  const scores = CHAIN_SCORES[chainId];
+  if (!scores) return 0;
+  return scores.airdrop + scores.devActivity + scores.costEfficiency;
 }
