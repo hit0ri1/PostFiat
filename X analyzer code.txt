@@ -1,0 +1,93 @@
+function filterAndSortTweets() {
+  // Open the active spreadsheet and get the 'XTweetAnalyzer' sheet
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('XTweetAnalyzer_RAW'); 
+  if (!sheet) {
+    Logger.log('Source sheet "XTweetAnalyzer" not found!');
+    return;
+  }
+
+  // Copy the data to a new sheet 'XTweetAnalyzer_RESULTS'
+  var newSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('XTweetAnalyzer_RESULTS');
+  if (!newSheet) {
+    newSheet = SpreadsheetApp.getActiveSpreadsheet().insertSheet('XTweetAnalyzer_RESULTS');
+  } else {
+    newSheet.clear(); // Clear previous data if the sheet already exists
+  }
+
+  // Get all the data in the original sheet
+  var data = sheet.getDataRange().getValues();
+
+  // Preserve the header row and write all the data to the new sheet
+  var header = data[0];  // Keep the first row as the header
+  newSheet.appendRow(header); // Add header to the new sheet
+  newSheet.getRange(2, 1, data.length - 1, data[0].length).setValues(data.slice(1)); // Copy all rows excluding the header
+
+  // Wait briefly to ensure the data is copied before proceeding (optional, usually not necessary)
+  SpreadsheetApp.flush();
+
+  // Column index (0-based) for each column you need to work with
+  var contentColumnIndex = 10; 
+  var viewsColumnIndex = 41;
+  
+  // Specific keywords to filter the tweets
+  var keywords = ["airdrop", "checker", "TGE", "drop", "testnet", "mint", "presale", "mintdate", "launch", "crypto"];
+  
+  // Filter rows: Remove rows where 'Content' does not contain any of the keywords
+  var filteredData = [];
+  for (var i = 0; i < data.length; i++) {
+    var content = data[i][contentColumnIndex];  // Content column
+
+    // Check if content is not empty or undefined before proceeding
+    if (content && typeof content === 'string') {
+      var containsKeyword = false;
+      
+      //Logger.log('Checking Content: ' + content); // Log the content being checked
+
+      // Check if content contains any of the keywords
+      for (var j = 0; j < keywords.length; j++) {
+        //Logger.log('Checking for Keyword: ' + keywords[j]); // Log the keyword being checked
+        if (content.toLowerCase().includes(keywords[j].toLowerCase())) {
+          containsKeyword = true;
+          break;
+        }
+      }
+      
+      // Only keep rows with the keyword
+      if (containsKeyword) {
+        filteredData.push(data[i]);
+      }
+    }
+  }
+
+  // If no data matched the filter, log and exit
+  if (filteredData.length === 0) {
+    Logger.log('No tweets matched the filter criteria.');
+    return;  // Exit function if no data to process
+  }
+
+  // Clear the new sheet and write the filtered data back
+  newSheet.clearContents();  // Clear existing data, but preserve the header
+  newSheet.appendRow(header);  // Re-add the header row
+  
+  // Write the filtered data back starting from row 2 (below the header)
+  newSheet.getRange(2, 1, filteredData.length, filteredData[0].length).setValues(filteredData);
+  
+  // Sort tweets by 'views_count' (descending order)
+  newSheet.getRange(2, 1, newSheet.getLastRow() - 1, newSheet.getLastColumn()).sort({column: viewsColumnIndex + 1, ascending: false});
+
+  // Delete specific columns (example: deleting columns A, B, D, E, F, G, H, I, J)
+  // Array of columns to delete (1-based indexing for columns)
+  deleteColumns(newSheet);
+  
+  Logger.log('Data filtered, sorted, and copied to XTweetAnalyzer_RESULTS!');
+}
+
+function deleteColumns(sheet) {
+  // Array of columns to delete (1-based indexing for columns)
+  var columnsToDelete = [1,2,4,5,6,7,8,9,10,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,33,34,40,41,44,45,46,47];  // Column indices to delete
+  
+  // Loop through the columns in reverse order to avoid shifting problems when deleting
+  for (var i = columnsToDelete.length - 1; i >= 0; i--) {
+    sheet.deleteColumn(columnsToDelete[i]);
+  }
+}
