@@ -30,7 +30,7 @@ function filterAndSortTweets() {
   var viewsColumnIndex = 41;
   
   // Specific keywords to filter the tweets
-  var keywords = ["airdrop", "checker", "TGE", "drop", "testnet", "mint", "presale", "mintdate", "launch", "crypto"];
+  var keywords = ["airdrop", "checker", "TGE", "drop", "testnet", "mint", "presale", "mintdate", "launch", "crypto", "pilot", "NFT", "proposal", "governance", "vote", "membership", "reward", "holder"];
   
   // Filter rows: Remove rows where 'Content' does not contain any of the keywords
   var filteredData = [];
