@@ -24,7 +24,7 @@ const FROM_ADDRESS = "0x7075f3b9C1c9fB099D000Ebb7676B1A972c2348E";
 const TO_ADDRESS = "0x7075f3b9C1c9fB099D000Ebb7676B1A972c2348E";
 
 // Different bridging amounts to test (10, 100, 1000 USDC)
-const BRIDGING_AMOUNTS = [1, 10, 100, 1000];
+const BRIDGING_AMOUNTS = [1, 10, 100];
 
 const CHAIN_SCORES = {
   8453: { airdrop: 80, devActivity: 70, costEfficiency: 90 }, // Base
@@ -50,18 +50,17 @@ function getLiFiQuote(fromChainId, toChainId, amount) {
     return { fee: 0, time: 0, bridgeName: '', slippageUSD: 0, fromAmount: 0, toAmount: 0 };
   }
 
-  const url = `https://li.quest/v1/quote?fromChain=${fromChainId}&toChain=${toChainId}&fromToken=USDC&toToken=USDC&fromAmount=${amount}&fromAddress=${FROM_ADDRESS}&toAddress=${TO_ADDRESS}`;
+  const fromToken = LIFI_USDC_ADDRESSES[fromChainId];
+  const toToken = LIFI_USDC_ADDRESSES[toChainId];
+
+  const url = `https://li.quest/v1/quote?fromChain=${fromChainId}&toChain=${toChainId}&fromToken=${fromToken}&toToken=${toToken}&fromAmount=${amount*1000000}&fromAddress=${FROM_ADDRESS}&toAddress=${TO_ADDRESS}`;
 
   try {
-    const response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
-    const statusCode = response.getResponseCode();
+    //Logger.log(url);
+    const data = fetchJsonWithRetries(url, 3, 1000); // 3 retries with 1 second delay
 
-    if (statusCode === 404) {
-      Logger.log(`❌ Route Unavailable: No quotes available for route from ${getChainName(fromChainId)} to ${getChainName(toChainId)}`);
-      return { fee: 0, time: 0, bridgeName: 'Route Unavailable', slippageUSD: 0, fromAmount: 0, toAmount: 0 };
-    }
-
-    const data = JSON.parse(response.getContentText());
+    //const response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+    //const data = JSON.parse(response.getContentText());
 
     // Log the full API response to inspect the structure
     //Logger.log(`📄 API Response for ${amount}: ${JSON.stringify(data, null, 2)}`);
@@ -71,8 +70,8 @@ function getLiFiQuote(fromChainId, toChainId, amount) {
       return { fee: 0, time: 0, bridgeName: 'Route Unavailable', slippageUSD: 0, fromAmount: 0, toAmount: 0 };
     }
 
-    const fromAmount = parseFloat(data.estimate.fromAmount) || 0;
-    const toAmount = parseFloat(data.estimate.toAmount) || 0;
+    const fromAmount = parseFloat(data.estimate.fromAmount)/1000000 || 0;
+    const toAmount = parseFloat(data.estimate.toAmount)/1000000 || 0;
     const slippage = fromAmount !== 0 ? (fromAmount - toAmount) / fromAmount : 0;
     const slippageUSD = slippage * fromAmount;
 
@@ -108,7 +107,7 @@ function getLiFiQuote(fromChainId, toChainId, amount) {
 
 function getOrbiterQuote(fromChainId, toChainId, amount) {
   const url = `https://api.orbiter.finance/sdk/routers/simulation/receiveAmount?line=${fromChainId}%2F${toChainId}-USDC%2FUSDC&value=${amount*1000000}&endpoint=`;
-  //Logger.log(url);
+  Logger.log(url);
 
   try {
     const response = UrlFetchApp.fetch(url, { method: 'get', muteHttpExceptions: true });
@@ -120,10 +119,11 @@ function getOrbiterQuote(fromChainId, toChainId, amount) {
     }
 
     const fee = ((Number(data.result.tradeFeeAmount) + Number(data.result.withholdingFeeAmount) + Number(data.result.router.swapFee)).toFixed(3));
-    //Logger.log('Fee ' + fee);
+    //Logger.log(`Trade fee ` + Number(data.result.tradeFeeAmount));
+    //Logger.log(`Witholding fee `+ Number(data.result.withholdingFeeAmount));
+    //Logger.log (`Total fee ` + fee);
     const time = data.result.router.spentTime || 0; // In seconds
-    //Logger.log('Time ' + time);
-    const slippageUSD = (amount - data.result.targetAmount);
+    const slippageUSD = 0; //always 0 for Orbiter
     const receivedAmount = data.result.targetAmount;
     return { fee, time, slippageUSD, receivedAmount};
   } 
@@ -134,19 +134,40 @@ function getOrbiterQuote(fromChainId, toChainId, amount) {
   }
 }
 
+// const LIFI_USDC_ADDRESSES = {
+//   8453: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", // Base
+//   10: "0x7F5c764cBc14f9669B88837ca1490cCa17c31607", // Optimism
+//   59144: "0x176211869cA2b568f2A7D4EE941E073a821EE1ff", // Linea
+//   80094: "0x549943e04f40284185054145c6E4e9568C1D3241", // Berachain
+//   5000: "0x09Bc4E0D864854c6aFB6eB9A9cdF58aC190D0dF9", // Mantle
+//   167000: "0x07d83526730c7438048D55A4fc0b850e2aaB6f0b", // Taiko
+//   2741: "0x84A71ccD554Cc1b02749b35d22F684CC8ec987e1", // Abstract
+//   122: "0x620fd5fa44BE6af63715Ef4E65DDFA0387aD13F5", // Fuse
+//   1285: "0xE3F5a90F9cb311505cd691a46596599aA1A0AD7D", // Moonriver
+// };
+
+// const ORBITER_USDC_ADDRESSES = {
+//   8453: "0xd9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA", // Base (Orbiter-specific)
+//   10: "0xd9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA", // Optimism (Orbiter-specific)
+//   59144: "0xd9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA", // Linea (Orbiter-specific)
+//   167000: "0x07d83526730c7438048D55A4fc0b850e2aaB6f0b", // Taiko
+//   122: "0x28c3d1cd466ba22f6cae51b1a4692a831696391a", // Fuse
+// };
+
+
 
 function updateBridgingData() {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  const liFIChains = [8453, 10, 59144, 80094, 5000, 167000, 2741, 122];
-  const orbiterChains = [8453, 10, 59144, 167000, 122];
+  const liFIChains = [8453, 10, 59144, 80094, 2741];
+  const orbiterChains = [8453, 10, 59144];
 
   // Adding headers to the spreadsheet
   sheet.clear();
-  sheet.appendRow(['Timestamp', 'From Chain', 'To Chain', 'Bridging Amount (USDC)', 'Fee (USD)', 'Est. Bridge Time (s)', 'Bridge Name', 'Slippage (USD)', 'Received Amount (USDC)', 'Link', `Est PFT points`, `Chain Opportunity Index`,]);
+  sheet.appendRow(['Timestamp', 'From Chain', 'To Chain', 'Bridging Amount (USDC)', 'Fee (USD)', 'Fee (%)', 'Est. Bridge Time (s)', 'Bridge Name', 'Slippage (USD)', 'Slippage (%)', 'Received Amount (USDC)', `Total costs (USD)`, `Total costs (%)`,'Link', `Est PFT points`, `Chain Opportunity Index`,]);
 
   
   // LiFi update block
-  sheet.appendRow([`LiFi routes`]);
+  //sheet.appendRow([`LiFi routes`]);
   for (const fromChainId of liFIChains) {
     for (const toChainId of liFIChains) {
       if (fromChainId !== toChainId) {
@@ -163,27 +184,35 @@ function updateBridgingData() {
 
         for (const amount of BRIDGING_AMOUNTS) {
           const liFiQuote = getLiFiQuote(fromChainId, toChainId, amount);
-          const liFiFee = liFiQuote.fee;
+          const liFiFeeUSD = liFiQuote.fee;
+          const liFiFeePerc = liFiFeeUSD/amount;
           const liFiTime = liFiQuote.time;
           const liFiBridgeName = liFiQuote.bridgeName;
-          const liFiSlippage = liFiQuote.slippageUSD;
+          const liFiSlippageUSD = liFiQuote.slippageUSD;
+          const liFiSlippagePerc = liFiSlippageUSD/amount;
           const liFiReceivedAmount = liFiQuote.toAmount;
           const liFiTimeFormatted = liFiTime.toFixed(4);
-          const opportunityIndex = calculateOpportunityIndex(fromChainId);
+          const liFiOpportunityIndex = calculateOpportunityIndex(fromChainId);
+          const totalCostsUSD = liFiFeeUSD + liFiSlippageUSD;
+          const totalCostsPerc = (totalCostsUSD/amount)*100;
 
           sheet.appendRow([
             currentTime,
             fromChainName,
             toChainName,
             amount,
-            liFiFee,
+            liFiFeeUSD,
+            liFiFeePerc,
             liFiTimeFormatted,
             liFiBridgeName,
-            liFiSlippage,
+            liFiSlippageUSD,
+            liFiSlippagePerc,
             liFiReceivedAmount,
+            totalCostsUSD,
+            totalCostsPerc,
             `https://jumper.exchange/?fromAmount=${amount}&fromChain=${fromChainId}&fromToken=${LIFI_USDC_ADDRESSES[fromChainId]}&toChain=${toChainId}&toToken=${LIFI_USDC_ADDRESSES[toChainId]}`,
             80,
-            opportunityIndex,
+            liFiOpportunityIndex,
           ]);
 
           Logger.log(`✅ Data written for route: ${fromChainName} -> ${toChainName} with amount: ${amount}`);
@@ -193,7 +222,7 @@ function updateBridgingData() {
   }
 
   // Orbiter update block
-  sheet.appendRow([`Orbiter routes`]);
+  //sheet.appendRow([`Orbiter routes`]);
   for (const fromChainId of orbiterChains) {
     for (const toChainId of orbiterChains) {
       if (fromChainId !== toChainId) {
@@ -209,25 +238,33 @@ function updateBridgingData() {
 
         for (const amount of BRIDGING_AMOUNTS) {
           const orbiterQuote = getOrbiterQuote(fromChainId, toChainId, amount);
-          const orbiterFee = orbiterQuote.fee;
+          const orbiterFeeUSD = orbiterQuote.fee;
+          const orbiterFeePerc = orbiterFeeUSD/amount;
           const orbiterTime = orbiterQuote.time;
-          const orbiterSlippage = orbiterQuote.slippageUSD;
+          const orbiterSlippageUSD = orbiterQuote.slippageUSD;
+          const orbiterSlippagePerc = orbiterSlippageUSD/amount;
           const orbiterRecievedAmount = orbiterQuote.receivedAmount;
-          const opportunityIndex = calculateOpportunityIndex(fromChainId);
+          const orbiterOpportunityIndex = calculateOpportunityIndex(fromChainId);
+          const orbiterTotalCostsUSD = orbiterFeeUSD + orbiterSlippageUSD;
+          const orbiterTotalCostsPerc = orbiterTotalCostsUSD/amount;
 
           sheet.appendRow([
             currentTime,
             fromChainName,
             toChainName,
             amount,
-            orbiterFee,
+            orbiterFeeUSD,
+            orbiterFeePerc,
             orbiterTime,
             `No data`,
-            orbiterSlippage,
+            orbiterSlippageUSD,
+            orbiterSlippagePerc,
             orbiterRecievedAmount,
+            orbiterTotalCostsUSD,
+            orbiterTotalCostsPerc,
             `https://orbiter.finance/en?src_chain=${fromChainId}&tgt_chain=${toChainId}&src_token=USDC`,
             80,
-            opportunityIndex,
+            orbiterOpportunityIndex,
           ]);
 
           Logger.log(`✅ Data written for route: ${fromChainName} -> ${toChainName} with amount: ${amount}`);
@@ -276,16 +313,52 @@ function setColumnAlignment(sheet) {
 
   // Loop through each column and set alignment, except the one with links
   for (let col = 1; col <= numColumns; col++) {
-    if (col !== 9 & col != 14) {  // Assuming the Jumper Link is in column 9 and Orbiter 14 (adjust if needed)
+    if (col !== 14) {  // Assuming the Jumper Link is in column 10 (adjust if needed)
       sheet.getRange(1, col, sheet.getLastRow(), 1).setHorizontalAlignment("center");
     } else {
       sheet.getRange(1, col, sheet.getLastRow(), 1).setHorizontalAlignment("left");  // Align links to the left
     }
   }
+
+  sheet.getRange(2,1,sheet.getLastRow()-1,14).sort({ column: 13, ascending: true });
+  // const lastRow = sheet.getLastRow();
+  //   if (lastRow > 1) {
+  //     sheet.getRange(2, 1, lastRow - 1, headers.length)
+  //      .sort({ column: 13, ascending: true });
+  //   }
 }
 
 function calculateOpportunityIndex(chainId) {
   const scores = CHAIN_SCORES[chainId];
   if (!scores) return 0;
   return scores.airdrop + scores.devActivity + scores.costEfficiency;
+}
+
+function fetchJsonWithRetries(url, maxRetries, delayMs) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+      const code = response.getResponseCode();
+      
+      // If not 200, log and retry
+      if (code !== 200) {
+        throw new Error(`HTTP ${code} on attempt ${attempt}`);
+      }
+      
+      const json = JSON.parse(response.getContentText());
+      
+      // Check if it's a "No quote" style response
+      if (json.message && json.message.toLowerCase().includes("no quote")) {
+        throw new Error(`LiFi API says: ${json.message}`);
+      }
+      
+      return json; // ✅ Successful fetch
+    } catch (err) {
+      Logger.log(`Attempt ${attempt}: ${err.message}`);
+      if (attempt === maxRetries) {
+        throw new Error(`Failed after ${maxRetries} attempts: ${err.message}`);
+      }
+      Utilities.sleep(delayMs); // Wait before retrying
+    }
+  }
 }
