@@ -1,5 +1,4 @@
 // Configuration
-const ALCHEMY_API_URL = "https://eth-mainnet.g.alchemy.com/v2/Itp9SwhpZidPsDiibof5Si48oXNs2Id-"; // Replace with your key
 const LIFI_USDC_ADDRESSES = {
   8453: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", // Base
   10: "0x7F5c764cBc14f9669B88837ca1490cCa17c31607", // Optimism
@@ -10,6 +9,8 @@ const LIFI_USDC_ADDRESSES = {
   2741: "0x84A71ccD554Cc1b02749b35d22F684CC8ec987e1", // Abstract
   122: "0x620fd5fa44BE6af63715Ef4E65DDFA0387aD13F5", // Fuse
   1285: "0xE3F5a90F9cb311505cd691a46596599aA1A0AD7D", // Moonriver
+  1868: "0xbA9986D2381edf1DA03B0B9c1f8b00dc4AacC369", //Soneium
+  146: "0x29219dd400f2Bf60E5a23d13Be72B486D4038894", //Sonic
 };
 
 const ORBITER_USDC_ADDRESSES = {
@@ -18,14 +19,16 @@ const ORBITER_USDC_ADDRESSES = {
   59144: "0xd9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA", // Linea (Orbiter-specific)
   167000: "0x07d83526730c7438048D55A4fc0b850e2aaB6f0b", // Taiko
   122: "0x28c3d1cd466ba22f6cae51b1a4692a831696391a", // Fuse
+  534352: "0x06eFdBFf2a14a7c8E15944D1F4A48F9F95F663A4", //Scroll
 };
 
 const FROM_ADDRESS = "0x7075f3b9C1c9fB099D000Ebb7676B1A972c2348E";
 const TO_ADDRESS = "0x7075f3b9C1c9fB099D000Ebb7676B1A972c2348E";
 
 // Different bridging amounts to test (10, 100, 1000 USDC)
-const BRIDGING_AMOUNTS = [1, 10, 100];
+const BRIDGING_AMOUNTS = [10, 30, 50];
 
+//chain evaluation scores, specified by me (from 0 to 100)
 const CHAIN_SCORES = {
   8453: { airdrop: 80, devActivity: 70, costEfficiency: 90 }, // Base
   10: { airdrop: 70, devActivity: 85, costEfficiency: 80 }, // Optimism
@@ -107,7 +110,7 @@ function getLiFiQuote(fromChainId, toChainId, amount) {
 
 function getOrbiterQuote(fromChainId, toChainId, amount) {
   const url = `https://api.orbiter.finance/sdk/routers/simulation/receiveAmount?line=${fromChainId}%2F${toChainId}-USDC%2FUSDC&value=${amount*1000000}&endpoint=`;
-  Logger.log(url);
+  //Logger.log(url);
 
   try {
     const response = UrlFetchApp.fetch(url, { method: 'get', muteHttpExceptions: true });
@@ -115,7 +118,7 @@ function getOrbiterQuote(fromChainId, toChainId, amount) {
     
     if (!data.result) {
       Logger.log(`❌ Error: No 'result' found in API response.`);
-      return { fee: 0, time: 0, slippageUSD: 0, freceivedAmount: 0 };
+      return { fee: 0, time: 0, slippageUSD: 0, receivedAmount: 0 };
     }
 
     const fee = ((Number(data.result.tradeFeeAmount) + Number(data.result.withholdingFeeAmount) + Number(data.result.router.swapFee)).toFixed(3));
@@ -158,12 +161,12 @@ function getOrbiterQuote(fromChainId, toChainId, amount) {
 
 function updateBridgingData() {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  const liFIChains = [8453, 10, 59144, 80094, 2741];
-  const orbiterChains = [8453, 10, 59144];
+  const liFIChains = [8453, 10, 59144, 80094, 2741, 1868, 146];
+  const orbiterChains = [8453, 10, 59144, 534352];
 
   // Adding headers to the spreadsheet
   sheet.clear();
-  sheet.appendRow(['Timestamp', 'From Chain', 'To Chain', 'Bridging Amount (USDC)', 'Fee (USD)', 'Fee (%)', 'Est. Bridge Time (s)', 'Bridge Name', 'Slippage (USD)', 'Slippage (%)', 'Received Amount (USDC)', `Total costs (USD)`, `Total costs (%)`,'Link', `Est PFT points`, `Chain Opportunity Index`,]);
+  sheet.appendRow(['Timestamp', 'From Chain', 'To Chain', 'Bridging Amount (USDC)', 'Fee (USD)', 'Fee (%)', 'Est. Bridge Time (s)', 'Bridge Name', 'Slippage (USD)', 'Slippage (%)', 'Received Amount (USDC)', `Total costs (USD)`, `Total costs (%)`,'Link', `Est PFT points`, `Chain Opportunity Index`,`chatGPT analyze`]);
 
   
   // LiFi update block
@@ -195,6 +198,9 @@ function updateBridgingData() {
           const liFiOpportunityIndex = calculateOpportunityIndex(fromChainId);
           const totalCostsUSD = liFiFeeUSD + liFiSlippageUSD;
           const totalCostsPerc = (totalCostsUSD/amount)*100;
+          
+          // OpenAI analysis on bridging data
+          //const openAIAnalysis = analyzeWithOpenAI(liFiQuote);
 
           sheet.appendRow([
             currentTime,
@@ -213,6 +219,7 @@ function updateBridgingData() {
             `https://jumper.exchange/?fromAmount=${amount}&fromChain=${fromChainId}&fromToken=${LIFI_USDC_ADDRESSES[fromChainId]}&toChain=${toChainId}&toToken=${LIFI_USDC_ADDRESSES[toChainId]}`,
             80,
             liFiOpportunityIndex,
+            //openAIAnalysis,
           ]);
 
           Logger.log(`✅ Data written for route: ${fromChainName} -> ${toChainName} with amount: ${amount}`);
@@ -221,7 +228,7 @@ function updateBridgingData() {
     }
   }
 
-  // Orbiter update block
+  //Orbiter update block
   //sheet.appendRow([`Orbiter routes`]);
   for (const fromChainId of orbiterChains) {
     for (const toChainId of orbiterChains) {
@@ -247,6 +254,9 @@ function updateBridgingData() {
           const orbiterOpportunityIndex = calculateOpportunityIndex(fromChainId);
           const orbiterTotalCostsUSD = orbiterFeeUSD + orbiterSlippageUSD;
           const orbiterTotalCostsPerc = orbiterTotalCostsUSD/amount;
+          
+          // OpenAI analysis on bridging data
+          //const openAIAnalysis = analyzeWithOpenAI(orbiterQuote);
 
           sheet.appendRow([
             currentTime,
@@ -265,6 +275,7 @@ function updateBridgingData() {
             `https://orbiter.finance/en?src_chain=${fromChainId}&tgt_chain=${toChainId}&src_token=USDC`,
             80,
             orbiterOpportunityIndex,
+            //openAIAnalysis,
           ]);
 
           Logger.log(`✅ Data written for route: ${fromChainName} -> ${toChainName} with amount: ${amount}`);
@@ -291,6 +302,9 @@ function getChainName(chainId) {
     2741: "Abstract",
     122: "Fuse",
     1285: "Moonriver",
+    1868: "Soneium",
+    146: "Sonic",
+    534352: "Scroll",
   };
 
   if (!chainId) {
@@ -362,3 +376,28 @@ function fetchJsonWithRetries(url, maxRetries, delayMs) {
     }
   }
 }
+
+function analyzeWithOpenAI(data) {
+  //const prompt = `Analyze the following bridging data for potential opportunities: ${JSON.stringify(data)}`;
+  const prompt = `You're an expert AI advisor that helps me to choose the best crypto bridge routes. Give a concise, user-friendly summary (under 2 sentences) of that bridge route:  ${JSON.stringify(data)}. Focus on the benefits or downsides for the user, such as speed, cost-efficiency, reliability, rumors of the future airdrops. Mark three that on your opinion are the best from the whole world data you have.`;
+
+  const requestBody = {
+    model: "gpt-4-turbo",
+    prompt: prompt,
+    max_tokens: 1000,
+    temperature: 0.7
+  };
+
+  const response = UrlFetchApp.fetch('https://api.openai.com/v1/completions', {
+    method: 'post',
+    headers: {
+      'Authorization': `Bearer ${OPENAI_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    payload: JSON.stringify(requestBody)
+  });
+  
+  const result = JSON.parse(response.getContentText());
+  return result.choices[0].text.trim();
+}
+
