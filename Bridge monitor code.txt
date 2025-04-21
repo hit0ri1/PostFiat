@@ -200,7 +200,7 @@ function updateBridgingData() {
           const totalCostsPerc = (totalCostsUSD/amount)*100;
           
           // OpenAI analysis on bridging data
-          //const openAIAnalysis = analyzeWithOpenAI(liFiQuote);
+          const openAIAnalysis = analyzeWithOpenAI(liFiQuote);
 
           sheet.appendRow([
             currentTime,
@@ -256,7 +256,7 @@ function updateBridgingData() {
           const orbiterTotalCostsPerc = orbiterTotalCostsUSD/amount;
           
           // OpenAI analysis on bridging data
-          //const openAIAnalysis = analyzeWithOpenAI(orbiterQuote);
+          const openAIAnalysis = analyzeWithOpenAI(orbiterQuote);
 
           sheet.appendRow([
             currentTime,
