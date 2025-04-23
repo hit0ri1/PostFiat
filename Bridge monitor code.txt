@@ -12,15 +12,18 @@ const LIFI_USDC_ADDRESSES = {
   1868: "0xbA9986D2381edf1DA03B0B9c1f8b00dc4AacC369", //Soneium
   146: "0x29219dd400f2Bf60E5a23d13Be72B486D4038894", //Sonic
   1151111081099710: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", //Solana
+  534352: "0x06eFdBFf2a14a7c8E15944D1F4A48F9F95F663A4", //Scroll
 };
 
+// Orbiter-specific addresess, could differs from LiFi
 const ORBITER_USDC_ADDRESSES = {
-  8453: "0xd9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA", // Base (Orbiter-specific)
-  10: "0xd9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA", // Optimism (Orbiter-specific)
-  59144: "0xd9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA", // Linea (Orbiter-specific)
+  8453: "0xd9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA", // Base
+  10: "0xd9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA", // Optimism
+  59144: "0xd9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA", // Linea
   167000: "0x07d83526730c7438048D55A4fc0b850e2aaB6f0b", // Taiko
   122: "0x28c3d1cd466ba22f6cae51b1a4692a831696391a", // Fuse
   534352: "0x06eFdBFf2a14a7c8E15944D1F4A48F9F95F663A4", //Scroll
+  1151111081099710: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", //Solana
 };
 
 const FROM_ADDRESS = "0x7075f3b9C1c9fB099D000Ebb7676B1A972c2348E";
@@ -28,8 +31,8 @@ const TO_ADDRESS = "0x7075f3b9C1c9fB099D000Ebb7676B1A972c2348E";
 const SOL_FROM_ADDRESS = "355D9VZJAaiGmne58YAiepAKhAnVgUhL645tBchPEyDM";
 const SOL_TO_ADDRESS = "355D9VZJAaiGmne58YAiepAKhAnVgUhL645tBchPEyDM";
 
-// Different bridging amounts to test (10, 100, 1000 USDC)
-const BRIDGING_AMOUNTS = [10];
+// Different bridging amounts to test (in USDC)
+const BRIDGING_AMOUNTS = [50];
 
 //chain evaluation scores, specified by me (from 0 to 100)
 const CHAIN_SCORES = {
@@ -42,6 +45,10 @@ const CHAIN_SCORES = {
   2741: { airdrop: 50, devActivity: 50, costEfficiency: 60 }, // Abstract
   122: { airdrop: 55, devActivity: 45, costEfficiency: 70 }, // Fuse
   1285: { airdrop: 20, devActivity: 25, costEfficiency: 50 }, // Moonriver
+  1868: { airdrop: 50, devActivity: 40, costEfficiency: 50 }, // Soneium
+  146: { airdrop: 50, devActivity: 40, costEfficiency: 50 }, // Sonic
+  1151111081099710: { airdrop: 70, devActivity: 90, costEfficiency: 80 }, // Solana
+  534352: { airdrop: 10, devActivity: 25, costEfficiency: 50 }, // Scroll
 };
 
 const HEADERS = {
@@ -78,12 +85,6 @@ function getLiFiQuote(fromChainId, toChainId, amount) {
   try {
     //Logger.log(url);
     const data = fetchJsonWithRetries(url, 3, 1000); // 3 retries with 1 second delay
-
-    //const response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
-    //const data = JSON.parse(response.getContentText());
-
-    // Log the full API response to inspect the structure
-    //Logger.log(`📄 API Response for ${amount}: ${JSON.stringify(data, null, 2)}`);
 
     if (!data.estimate) {
       Logger.log(`❌ No quote available for route from ${getChainName(fromChainId)} to ${getChainName(toChainId)}`);
@@ -126,8 +127,23 @@ function getLiFiQuote(fromChainId, toChainId, amount) {
 }
 
 function getOrbiterQuote(fromChainId, toChainId, amount) {
-  const url = `https://api.orbiter.finance/sdk/routers/simulation/receiveAmount?line=${fromChainId}%2F${toChainId}-USDC%2FUSDC&value=${amount*1000000}&endpoint=`;
+  //const url = `https://api.orbiter.finance/sdk/routers/simulation/receiveAmount?line=${fromChainId}%2F${toChainId}-USDC%2FUSDC&value=${amount*1000000}&endpoint=`;
   //Logger.log(url);
+
+  if (fromChainId == 1151111081099710)
+  {
+    url = `https://api.orbiter.finance/sdk/routers/simulation/receiveAmount?line=SOLANA_MAIN%2F${toChainId}-USDC%2FUSDC&value=${amount*1000000}&endpoint=`;
+  }
+  else
+  {
+    if (toChainId == 1151111081099710)
+    {
+      url = `https://api.orbiter.finance/sdk/routers/simulation/receiveAmount?line=${fromChainId}%2FSOLANA_MAIN-USDC%2FUSDC&value=${amount*1000000}&endpoint=`;
+    }
+    else{
+      url = `https://api.orbiter.finance/sdk/routers/simulation/receiveAmount?line=${fromChainId}%2F${toChainId}-USDC%2FUSDC&value=${amount*1000000}&endpoint=`;
+    }
+  }
 
   try {
     const response = UrlFetchApp.fetch(url, { method: 'get', muteHttpExceptions: true });
@@ -157,8 +173,8 @@ function getOrbiterQuote(fromChainId, toChainId, amount) {
 
 function updateBridgingData() {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  const liFIChains = [8453, 10, 59144, 1151111081099710]//, 80094, 2741, 1868, 146];
-  const orbiterChains = [8453, 10, 59144, 534352];
+  const liFIChains = [8453, 10, 59144, 1151111081099710, 534352]//, 80094, 2741, 1868, 146];
+  const orbiterChains = [8453, 10, 59144, 534352, 1151111081099710];
   let ID = 0;
 
   // Adding headers to the spreadsheet
@@ -197,9 +213,6 @@ function updateBridgingData() {
           const totalCostsUSD = liFiFeeUSD + liFiSlippageUSD;
           const totalCostsPerc = (totalCostsUSD/amount)*100;
           
-          // OpenAI analysis on bridging data
-          //const openAIAnalysis = analyzeWithOpenAI(liFiQuote);
-
           sheet.appendRow([
             ID,
             currentTime,
@@ -218,7 +231,6 @@ function updateBridgingData() {
             `https://jumper.exchange/?fromAmount=${amount}&fromChain=${fromChainId}&fromToken=${LIFI_USDC_ADDRESSES[fromChainId]}&toChain=${toChainId}&toToken=${LIFI_USDC_ADDRESSES[toChainId]}`,
             80,
             liFiOpportunityIndex,
-            //openAIAnalysis,
           ]);
 
 
@@ -230,61 +242,59 @@ function updateBridgingData() {
 
   //Orbiter update block
   //sheet.appendRow([`Orbiter routes`]);
-  // for (const fromChainId of orbiterChains) {
-  //   for (const toChainId of orbiterChains) {
-  //     if (fromChainId !== toChainId) {
-  //       Logger.log(`🔄 Route: fromChainId=${getChainName(fromChainId)}, toChainId=${getChainName(toChainId)}`);
-  //       const currentTime = new Date().toUTCString();
-  //       const fromChainName = getChainName(fromChainId);
-  //       const toChainName = getChainName(toChainId);
+  for (const fromChainId of orbiterChains) {
+    for (const toChainId of orbiterChains) {
+      if (fromChainId !== toChainId) {
+        Logger.log(`🔄 Route: fromChainId=${getChainName(fromChainId)}, toChainId=${getChainName(toChainId)}`);
+        const currentTime = new Date().toUTCString();
+        const fromChainName = getChainName(fromChainId);
+        const toChainName = getChainName(toChainId);
 
-  //       if (fromChainName === "unknown" || toChainName === "unknown") {
-  //         Logger.log(`❌ ERROR: Unknown chain detected for route from ${getChainName(fromChainId)} to ${getChainName(toChainId)}`);
-  //         continue;
-  //       }
+        if (fromChainName === "unknown" || toChainName === "unknown") {
+          Logger.log(`❌ ERROR: Unknown chain detected for route from ${getChainName(fromChainId)} to ${getChainName(toChainId)}`);
+          continue;
+        }
 
-  //       for (const amount of BRIDGING_AMOUNTS) {
-  //         const orbiterQuote = getOrbiterQuote(fromChainId, toChainId, amount);
-  //         const orbiterFeeUSD = orbiterQuote.fee;
-  //         const orbiterFeePerc = orbiterFeeUSD/amount;
-  //         const orbiterTime = orbiterQuote.time;
-  //         const orbiterSlippageUSD = orbiterQuote.slippageUSD;
-  //         const orbiterSlippagePerc = orbiterSlippageUSD/amount;
-  //         const orbiterRecievedAmount = orbiterQuote.receivedAmount;
-  //         const orbiterOpportunityIndex = calculateOpportunityIndex(fromChainId);
-  //         const orbiterTotalCostsUSD = orbiterFeeUSD + orbiterSlippageUSD;
-  //         const orbiterTotalCostsPerc = orbiterTotalCostsUSD/amount;
-          
-  //         // OpenAI analysis on bridging data
-  //         const openAIAnalysis = analyzeWithOpenAI(orbiterQuote);
+        for (const amount of BRIDGING_AMOUNTS) {
+          ID = ID+1;
+          const orbiterQuote = getOrbiterQuote(fromChainId, toChainId, amount);
+          const orbiterFeeUSD = orbiterQuote.fee;
+          const orbiterFeePerc = orbiterFeeUSD/amount;
+          const orbiterTime = orbiterQuote.time;
+          const orbiterSlippageUSD = orbiterQuote.slippageUSD;
+          const orbiterSlippagePerc = orbiterSlippageUSD/amount;
+          const orbiterRecievedAmount = orbiterQuote.receivedAmount;
+          const orbiterOpportunityIndex = calculateOpportunityIndex(fromChainId);
+          const orbiterTotalCostsUSD = orbiterFeeUSD + orbiterSlippageUSD;
+          const orbiterTotalCostsPerc = orbiterTotalCostsUSD/amount;
 
-  //         sheet.appendRow([
-  //           currentTime,
-  //           fromChainName,
-  //           toChainName,
-  //           amount,
-  //           orbiterFeeUSD,
-  //           orbiterFeePerc,
-  //           orbiterTime,
-  //           `No data`,
-  //           orbiterSlippageUSD,
-  //           orbiterSlippagePerc,
-  //           orbiterRecievedAmount,
-  //           orbiterTotalCostsUSD,
-  //           orbiterTotalCostsPerc,
-  //           `https://orbiter.finance/en?src_chain=${fromChainId}&tgt_chain=${toChainId}&src_token=USDC`,
-  //           80,
-  //           orbiterOpportunityIndex,
-  //           openAIAnalysis,
-  //         ]);
+          sheet.appendRow([
+            ID,
+            currentTime,
+            fromChainName,
+            toChainName,
+            amount,
+            orbiterFeeUSD,
+            orbiterFeePerc,
+            orbiterTime,
+            `No data`,
+            orbiterSlippageUSD,
+            orbiterSlippagePerc,
+            orbiterRecievedAmount,
+            orbiterTotalCostsUSD,
+            orbiterTotalCostsPerc,
+            `https://orbiter.finance/en?src_chain=${fromChainId}&tgt_chain=${toChainId}&src_token=USDC`,
+            80,
+            orbiterOpportunityIndex,
+          ]);
 
-  //         Logger.log(`✅ Data written for route: ${fromChainName} -> ${toChainName} with amount: ${amount}`);
-  //       }
-  //     }
-  //   }
-  // }
+          Logger.log(`✅ Data written for route: ${fromChainName} -> ${toChainName} with amount: ${amount}`);
+        }
+      }
+    }
+  }
 
-  //analyzeWithOpenAI(sheet);
+  analyzeWithOpenAI(sheet);
   setColumnAlignment(sheet);
   
   Logger.log("✅ Bridging data update completed.");
@@ -327,17 +337,24 @@ function setColumnAlignment(sheet) {
   const range = sheet.getDataRange(); // Get the range of all data
   const numColumns = range.getNumColumns(); // Get the number of columns
 
-  // Loop through each column and set alignment, except the one with links
   for (let col = 1; col <= numColumns; col++) {
-    if (col !== 15 || col !== 19) {  // Assuming the Jumper Link is in column 15 (adjust if needed)
-      sheet.getRange(1, col, sheet.getLastRow(), 1).setHorizontalAlignment("center");
+    const columnRange = sheet.getRange(1, col, sheet.getLastRow(), 1);
+
+    if (col === 15 || col === 19) {
+      columnRange.setHorizontalAlignment("left");
     } else {
-      sheet.getRange(1, col, sheet.getLastRow(), 1).setHorizontalAlignment("left");  // Align links to the left
+      columnRange.setHorizontalAlignment("center");
+    }
+
+    if (col === 19) {
+      columnRange.setWrapStrategy(SpreadsheetApp.WrapStrategy.WRAP); // Word wrap
     }
   }
 
-  sheet.getRange(2,1,sheet.getLastRow()-1,14).sort({ column: 14, ascending: true });
+  // Optional: sort all row by values in column 14
+  sheet.getRange(2, 1, sheet.getLastRow() - 1, 19).sort({ column: 14, ascending: true });
 }
+
 
 function calculateOpportunityIndex(chainId) {
   const scores = CHAIN_SCORES[chainId];
@@ -375,7 +392,7 @@ function fetchJsonWithRetries(url, maxRetries, delayMs) {
   }
 }
 
-// Send to chatGPT each row of a bridge data (it is slow)
+// Send to chatGPT each row of a bridge data (it is slow and done for every row)
 // function analyzeWithOpenAI(data) {
 //   //const prompt = `Analyze the following bridging data for potential opportunities: ${JSON.stringify(data)}`;
 //   const prompt = `You're an expert AI advisor that helps me to choose the best crypto bridge routes. Give a concise, user-friendly summary (under 2 sentences) of that bridge route:  ${JSON.stringify(data)}. Focus on the benefits or downsides for the user, such as speed, cost-efficiency, reliability, rumors of the future airdrops. Mark three that on your opinion are the best from the whole world data you have. At the start give your numerical evaluation from 0 to 100, where 0 is the worst bridge ever and 100 - higly recommended`;
@@ -413,162 +430,137 @@ function fetchJsonWithRetries(url, maxRetries, delayMs) {
 // }
 
 
-// async function analyzeWithOpenAI(sheet) {
-//   const data = sheet.getDataRange().getValues();
-//   const headers = data[0];
-//   const rows = data.slice(1).filter(row => row.join('').trim() !== '');
+async function analyzeWithOpenAI(sheet) {
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+  const rows = data.slice(1).filter(row => row.join('').trim() !== '');
 
-//   // Build a markdown-style table
-//   let markdown = `Here's a table of bridging quotes:\n\n`;
-//   markdown += `| ${headers.join(' | ')} |\n`;
-//   markdown += `| ${headers.map(() => '---').join(' | ')} |\n`;
+  // Build a markdown-style table
+  let markdown = `Here's a table of bridging quotes:\n\n`;
+  markdown += `| ${headers.join(' | ')} |\n`;
+  markdown += `| ${headers.map(() => '---').join(' | ')} |\n`;
 
-//   rows.forEach(row => {
-//     const sanitizedRow = row.map(cell => String(cell).replace(/\|/g, '\\|')); // Escape |
-//     markdown += `| ${sanitizedRow.join(' | ')} |\n`;
-//   });
+  rows.forEach(row => {
+    const sanitizedRow = row.map(cell => String(cell).replace(/\|/g, '\\|')); // Escape |
+    markdown += `| ${sanitizedRow.join(' | ')} |\n`;
+  });
 
-//   const prompt = `
-// ${markdown}
+  const prompt = `
+    ${markdown}
 
-// // From this table, return the top 3 best bridging routes. Prioritize lowest total cost (Fee USD + Slippage in $), then fastest estimated time. 
-// // For each selected route, return a short summary (under two sentences) explaining why it was chosen.
-// // Output only the 3 best rows (verbatim as in the table) and the corresponding short summary for each.
+    You're an expert AI advisor that has the whole world's crypto market data in your hands. You help choose the best crypto bridge routes available for given pairs.
+    You are analyzing bridging routes from the following table. 
+    Based on the data you have, choose the top 3 best routes using the following criteria:
+    - Prioritize routes with lowest total cost (sum of Fee USD and Slippage USD).
+    - If costs are similar, evaluate benefits of using these chains in terms of rumored future airdrops (if there are rumors about it — don't make it up).
+    - After that, prefer the route with the fastest estimated bridge time.
 
-// You are analyzing bridging routes from the following table. Each route has a unique "Route ID". Based on the data, choose the top 3 best routes using the following criteria:
-// - Prioritize routes with lowest total cost (sum of Fee USD and Slippage USD).
-// - If costs are similar, prefer the route with the fastest estimated bridge time.
+    Output the result as a JSON array of 3 objects, each with:
+    - "routeID": (the Route ID number from the table),
+    - "routeEstimationValue": (a number between 0 and 100 estimating its overall value, usability, benefits of using this chain because of rumors of future airdrops),
+    - "routeSummary": (a brief user-friendly summary (under 4 sentences) — of why this route is good).
 
-// Output the result as a JSON array of 3 objects, each with:
-// - "routeID": (the Route ID number from the table),
-// - "routeEstimationValue": (a number between 0 and 100 estimating its overall value),
-// - "routeSummary": (a brief summary — max 2 sentences — of why this route is good).
+    Only return the JSON array. Do not include any other text.
+    `;
 
-// Only return the JSON array. Do not include any other text.
-// `;
+  const response = UrlFetchApp.fetch("https://api.openai.com/v1/chat/completions", {
+  method: "post",
+  contentType: "application/json",
+  headers: {
+    Authorization: `Bearer ${OPENAI_API_KEY}`
+  },
+  payload: JSON.stringify({
+    model: "gpt-4-turbo",
+    messages: [
+      { role: "system", content: "You are an expert at analyzing crypto bridge routes." },
+      { role: "user", content: prompt }
+    ],
+    temperature: 0.2
+  })
+  });
 
-//   const response = UrlFetchApp.fetch("https://api.openai.com/v1/chat/completions", {
-//   method: "post",
-//   contentType: "application/json",
-//   headers: {
-//     Authorization: `Bearer ${OPENAI_API_KEY}`
-//   },
-//   payload: JSON.stringify({
-//     model: "gpt-4-turbo",
-//     messages: [
-//       { role: "system", content: "You are an expert at analyzing crypto bridge routes." },
-//       { role: "user", content: prompt }
-//     ],
-//     temperature: 0.2
-//   })
-//   });
+  //Logger.log("OpenAI HTTP Response Code: " + response.getResponseCode());
+  const responseText = response.getContentText();
+  //Logger.log("OpenAI Raw Text Response: " + responseText);
 
-//   //Logger.log("OpenAI HTTP Response Code: " + response.getResponseCode());
-//   const responseText = response.getContentText();
-//   //Logger.log("OpenAI Raw Text Response: " + responseText);
+  let analysis;
+  try {
+    const parsed = JSON.parse(responseText);
+    const content = parsed.choices[0].message.content;
+    //Logger.log("Raw content from ChatGPT:\n" + content);
+    analysis = JSON.parse(content); // This is the actual array of routes
+  } catch (e) {
+    Logger.log("Failed to parse response JSON or content: " + e);
+    return;
+  }
 
-//   let analysis;
-//   try {
-//     const parsed = JSON.parse(responseText);
-//     const content = parsed.choices[0].message.content;
-//     //Logger.log("Raw content from ChatGPT:\n" + content);
-//     analysis = JSON.parse(content); // This is the actual array of routes
-//   } catch (e) {
-//     Logger.log("Failed to parse response JSON or content: " + e);
-//     return;
-//   }
+  // Now extract IDs, scores, and summaries
+  const IDs = analysis.map(route => route.routeID);
+  const scores = analysis.map(route => route.routeEstimationValue);
+  const summaries = analysis.map(route => route.routeSummary);
 
-//   //Logger.log("Parsed analysis: " + JSON.stringify(analysis, null, 2));
+  highlightTopRoutes(sheet, IDs);
+  writeChatGPTScores(sheet, IDs, scores);
+  writeChatGPTSummaries(sheet, IDs, summaries);
+}
 
-//   // Now extract IDs, scores, and summaries
-//   const IDs = analysis.map(route => route.routeID);
-//   //Logger.log("IDs: " + JSON.stringify(IDs));
+function highlightTopRoutes(sheet, IDs) {
+  Logger.log("Highlighting function starts");
 
-//   const scores = analysis.map(route => route.routeEstimationValue);
-//   //Logger.log("Scores: " + JSON.stringify(scores));
+  const data = sheet.getDataRange().getValues();
+  const idIndex = data[0].indexOf("Route ID");
 
-//   const summaries = analysis.map(route => route.routeSummary);
-//   //Logger.log("Summaries: " + JSON.stringify(summaries));
+  if (idIndex === -1) {
+    Logger.log("Could not find 'Route ID' column.");
+    return;
+  }
 
-//   highlightTopRoutes(sheet, IDs);
-//   Logger.log("Scores array: " + JSON.stringify(scores));
-//   writeChatGPTScores(sheet, IDs, scores);
-//   writeChatGPTSummaries(sheet, IDs, summaries);
-// }
-
-// function highlightTopRoutes(sheet, IDs) {
-//   Logger.log("Highlighting function starts");
-
-//   const data = sheet.getDataRange().getValues();
-//   const idIndex = data[0].indexOf("Route ID");
-
-//   if (idIndex === -1) {
-//     Logger.log("Could not find 'Route ID' column.");
-//     return;
-//   }
-
-//   for (let i = 1; i < data.length; i++) {
-//     const routeID = String(data[i][idIndex]).trim();
-//     const match = IDs.map(String).map(id => id.trim()).includes(routeID);
+  for (let i = 1; i < data.length; i++) {
+    const routeID = String(data[i][idIndex]).trim();
+    const match = IDs.map(String).map(id => id.trim()).includes(routeID);
     
-//     if (match) {
-//       const range = sheet.getRange(i + 1, 1, 1, sheet.getLastColumn());
-//       range.setBackground("#e3f2fd");
-//     }
-//   }
-//   Logger.log("Highlighting function ends");
-// }
+    if (match) {
+      const range = sheet.getRange(i + 1, 1, 1, sheet.getLastColumn());
+      range.setBackground("#e3f2fd");
+    }
+  }
+  Logger.log("Highlighting function ends");
+}
 
-// function writeChatGPTScores(sheet, IDs, scores) {
-//   Logger.log("writeChatGPTScores function starts");
-//   const data = sheet.getDataRange().getValues();
-//   const idIndex = data[0].indexOf("Route ID");
+function writeChatGPTScores(sheet, IDs, scores) {
+  Logger.log("writeChatGPTScores function starts");
+  const data = sheet.getDataRange().getValues();
+  const idIndex = data[0].indexOf("Route ID");
 
-//   for (let i = 1; i < data.length; i++) {
-//     const routeID = String(data[i][idIndex]).trim(); // Convert to string and remove extra spaces
-//     const matchIndex = IDs.indexOf(routeID);
+  if (idIndex === -1) {
+    Logger.log("Could not find 'Route ID' column.");
+    return;
+  }
 
-//     if (matchIndex !== -1) {
-//       Logger.log("Writing score " + scores[matchIndex] + " to row " + (i + 1) + ", column 18");
-//       sheet.getRange(i + 1, 18).setValue(scores[matchIndex]);
-//     }
-//   }
-
-
-//   // for (let i = 1; i < data.length; i++) {
-//   //   const routeID = String(data[i][idIndex]).trim(); // Convert to string and remove extra spaces
-//   //   Logger.log("Checking routeID: " + routeID + " (from row " + (i + 1) + ")");
+  for (let i = 1; i < data.length; i++) {
+    const routeID = String(data[i][idIndex]).trim(); // Convert to string and remove extra spaces
+    const matchIndex = IDs.map(String).map(id => id.trim()).indexOf(routeID);
     
-//   //   // Check if routeID exists in the IDs array
-//   //   const matchIndex = IDs.indexOf(routeID);
-//   //   Logger.log("matchIndex: " + matchIndex);
+    if (matchIndex !== -1) {
+      sheet.getRange(i + 1, 18).setValue(scores[matchIndex]);
+    }
 
-//   //   // Log the comparison and the IDs array for clarity
-//   //   Logger.log("IDs Array: " + JSON.stringify(IDs));
-//   //   Logger.log("Comparing routeID: " + routeID + " with the IDs array");
-
-//   //   if (matchIndex !== -1) {
-//   //     Logger.log("Writing score " + scores[matchIndex] + " to row " + (i + 1) + ", column 18");
-//   //     sheet.getRange(i + 1, 18).setValue(scores[matchIndex]);
-//   //   }
-//   // }
-//   Logger.log("writeChatGPTScores function ends");
-// }
+  }
+  Logger.log("writeChatGPTScores function ends");
+}
 
 
-// function writeChatGPTSummaries(sheet, IDs, summaries) {
-//   Logger.log("writeChatGPTSummaries function starts");
-//   const data = sheet.getDataRange().getValues();
-//   const idIndex = data[0].indexOf("Route ID");
+function writeChatGPTSummaries(sheet, IDs, summaries) {
+  Logger.log("writeChatGPTSummaries function starts");
+  const data = sheet.getDataRange().getValues();
+  const idIndex = data[0].indexOf("Route ID");
 
-//   for (let i = 1; i < data.length; i++) {
-//     const routeID = data[i][idIndex];
-//     const matchIndex = IDs.indexOf(routeID);
-//     if (matchIndex !== -1) {
-//       sheet.getRange(i + 1, 19).setValue(summaries[matchIndex]);
-//     }
-//   }
-//   Logger.log("writeChatGPTSummaries function ends");
-// }
-
-
+  for (let i = 1; i < data.length; i++) {
+    const routeID = data[i][idIndex];
+    const matchIndex = IDs.indexOf(routeID);
+    if (matchIndex !== -1) {
+      sheet.getRange(i + 1, 19).setValue(summaries[matchIndex]);
+    }
+  }
+  Logger.log("writeChatGPTSummaries function ends");
+}
