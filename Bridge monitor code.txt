@@ -1,4 +1,5 @@
 // Configuration
+
 const LIFI_USDC_ADDRESSES = {
   8453: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", // Base
   10: "0x7F5c764cBc14f9669B88837ca1490cCa17c31607", // Optimism
@@ -15,7 +16,7 @@ const LIFI_USDC_ADDRESSES = {
   534352: "0x06eFdBFf2a14a7c8E15944D1F4A48F9F95F663A4", //Scroll
 };
 
-// Orbiter-specific addresess, could differs from LiFi
+// Orbiter-specific addresses, could differs from LiFi
 const ORBITER_USDC_ADDRESSES = {
   8453: "0xd9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA", // Base
   10: "0xd9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA", // Optimism
@@ -24,15 +25,18 @@ const ORBITER_USDC_ADDRESSES = {
   122: "0x28c3d1cd466ba22f6cae51b1a4692a831696391a", // Fuse
   534352: "0x06eFdBFf2a14a7c8E15944D1F4A48F9F95F663A4", //Scroll
   1151111081099710: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", //Solana
+  00100: "0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7", //Sui, chain ID is unconfirmed
 };
 
 const FROM_ADDRESS = "0x7075f3b9C1c9fB099D000Ebb7676B1A972c2348E";
 const TO_ADDRESS = "0x7075f3b9C1c9fB099D000Ebb7676B1A972c2348E";
 const SOL_FROM_ADDRESS = "355D9VZJAaiGmne58YAiepAKhAnVgUhL645tBchPEyDM";
 const SOL_TO_ADDRESS = "355D9VZJAaiGmne58YAiepAKhAnVgUhL645tBchPEyDM";
+const SUI_FROM_ADDRESS = "0x552e0d56a2d3cf086751a1d2d47b33a9b54f540752d0dc3a96834397b2a7a25f";
+const SUI_TO_ADDRESS = "0x552e0d56a2d3cf086751a1d2d47b33a9b54f540752d0dc3a96834397b2a7a25f";
 
 // Different bridging amounts to test (in USDC)
-const BRIDGING_AMOUNTS = [50];
+const BRIDGING_AMOUNTS = [770];
 
 //chain evaluation scores, specified by me (from 0 to 100)
 const CHAIN_SCORES = {
@@ -49,6 +53,7 @@ const CHAIN_SCORES = {
   146: { airdrop: 50, devActivity: 40, costEfficiency: 50 }, // Sonic
   1151111081099710: { airdrop: 70, devActivity: 90, costEfficiency: 80 }, // Solana
   534352: { airdrop: 10, devActivity: 25, costEfficiency: 50 }, // Scroll
+  00100: { airdrop: 30, devActivity: 55, costEfficiency: 70 }, // Sui
 };
 
 const HEADERS = {
@@ -109,9 +114,7 @@ function getLiFiQuote(fromChainId, toChainId, amount) {
     }
 
     const finalFeeUSD = totalFeeUSD > 0 ? totalFeeUSD + totalGasUSD : totalGasUSD;
-
     //Logger.log(`📈 Final Fee (USD) for amount ${amount}: ${finalFeeUSD}`);
-
     return {
       fee: finalFeeUSD,
       time: parseInt(data.estimate.executionDuration) || 0,
@@ -127,67 +130,76 @@ function getLiFiQuote(fromChainId, toChainId, amount) {
 }
 
 function getOrbiterQuote(fromChainId, toChainId, amount) {
-  //const url = `https://api.orbiter.finance/sdk/routers/simulation/receiveAmount?line=${fromChainId}%2F${toChainId}-USDC%2FUSDC&value=${amount*1000000}&endpoint=`;
-  //Logger.log(url);
+  if (fromChainId == 1151111081099710){
+      fromChainId = "SOLANA_MAIN";
+  }
+  if (fromChainId == 00100){
+      fromChainId = "SUI_MAIN";
+  }
+  if (toChainId == 1151111081099710){
+    toChainId = "SOLANA_MAIN";
+    }
+  if (toChainId == 00100){
+    toChainId = "SUI_MAIN";
+  }
 
-  if (fromChainId == 1151111081099710)
-  {
-    url = `https://api.orbiter.finance/sdk/routers/simulation/receiveAmount?line=SOLANA_MAIN%2F${toChainId}-USDC%2FUSDC&value=${amount*1000000}&endpoint=`;
-  }
-  else
-  {
-    if (toChainId == 1151111081099710)
-    {
-      url = `https://api.orbiter.finance/sdk/routers/simulation/receiveAmount?line=${fromChainId}%2FSOLANA_MAIN-USDC%2FUSDC&value=${amount*1000000}&endpoint=`;
-    }
-    else{
-      url = `https://api.orbiter.finance/sdk/routers/simulation/receiveAmount?line=${fromChainId}%2F${toChainId}-USDC%2FUSDC&value=${amount*1000000}&endpoint=`;
-    }
-  }
+  const url = `https://api.orbiter.finance/sdk/routers/simulation/receiveAmount?line=${fromChainId}%2F${toChainId}-USDC%2FUSDC&value=${amount*1000000}&endpoint=`
 
   try {
-    const response = UrlFetchApp.fetch(url, { method: 'get', muteHttpExceptions: true });
-    const data = JSON.parse(response.getContentText());
+    const data = fetchJsonWithRetries(url, 3, 1000); // 3 retries with 1 second delay
     
     if (!data.result) {
       Logger.log(`❌ Error: No 'result' found in API response.`);
       return { fee: 0, time: 0, slippageUSD: 0, receivedAmount: 0 };
     }
 
-    const fee = ((Number(data.result.tradeFeeAmount) + Number(data.result.withholdingFeeAmount) + Number(data.result.router.swapFee)).toFixed(3));
+    const fee = ((Number(data.result.tradeFeeAmount) + Number(data.result.withholdingFeeAmount) + Number(data.result.router.swapFee))) || 0;
     //Logger.log(`Trade fee ` + Number(data.result.tradeFeeAmount));
     //Logger.log(`Witholding fee `+ Number(data.result.withholdingFeeAmount));
     //Logger.log (`Total fee ` + fee);
     const time = data.result.router.spentTime || 0; // In seconds
     const slippageUSD = 0; //always 0 for Orbiter
     const receivedAmount = data.result.targetAmount;
-    return { fee, time, slippageUSD, receivedAmount};
+    return { fee, time, slippageUSD, receivedAmount, fromChainId, toChainId};
   } 
   
   catch (e) {
     Logger.log(`❌ Error: ${e}`);
-    return { fee: 0, time: 0, slippageUSD: 0, freceivedAmount: 0 };
+    return { fee: 0, time: 0, slippageUSD: 0, freceivedAmount: 0, fromChainId, toChainId };
   }
 }
 
+  // 8453: Base
+  // 10: Optimism
+  // 59144: Linea
+  // 80094: Berachain
+  // 5000: Mantle
+  // 167000: Taiko
+  // 2741: Abstract
+  // 122: Fuse
+  // 1285: Moonriver
+  // 1868: Soneium
+  // 146: Sonic
+  // 1151111081099710: Solana
+  // 534352: Scroll
 
 function updateBridgingData() {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  const liFIChains = [8453, 10, 59144, 1151111081099710, 534352]//, 80094, 2741, 1868, 146];
-  const orbiterChains = [8453, 10, 59144, 534352, 1151111081099710];
+  const liFIChains = [8453, 10, 59144, 2741, 534352, 80094, 1151111081099710]//, 1868, 146];
+  const orbiterChains = [8453, 10, 59144, 534352, 00100, 1151111081099710];
   let ID = 0;
 
   // Adding headers to the spreadsheet
   sheet.clear();
   sheet.appendRow(['Route ID', 'Timestamp', 'From Chain', 'To Chain', 'Bridging Amount (USDC)', 'Fee (USD)', 'Fee (%)', 'Est. Bridge Time (s)', 'Bridge Name', 'Slippage (USD)', 'Slippage (%)', 'Received Amount (USDC)', `Total costs (USD)`, `Total costs (%)`,'Link', `Est PFT points`, `Chain Opportunity Index`,'chatGPT score', `chatGPT analyze`]);
-
+  setColumnAlignment(sheet);
   
   // LiFi update block
   //sheet.appendRow([`LiFi routes`]);
   for (const fromChainId of liFIChains) {
     for (const toChainId of liFIChains) {
       if (fromChainId !== toChainId) {
-        Logger.log(`🔄 Route: fromChainId=${getChainName(fromChainId)}, toChainId=${getChainName(toChainId)}`);
+        Logger.log(`🔄 Jumper route: ${getChainName(fromChainId)} -> ${getChainName(toChainId)}`);
         const currentTime = new Date().toUTCString();
 
         const fromChainName = getChainName(fromChainId);
@@ -203,16 +215,15 @@ function updateBridgingData() {
           const liFiQuote = getLiFiQuote(fromChainId, toChainId, amount);
           const liFiFeeUSD = liFiQuote.fee;
           const liFiFeePerc = liFiFeeUSD/amount;
-          const liFiTime = liFiQuote.time;
+          const liFiTime = liFiQuote.time + 0.00000001;//adding small number for Google to recognize it as number and not date
           const liFiBridgeName = liFiQuote.bridgeName;
           const liFiSlippageUSD = liFiQuote.slippageUSD;
           const liFiSlippagePerc = liFiSlippageUSD/amount;
           const liFiReceivedAmount = liFiQuote.toAmount;
-          const liFiTimeFormatted = liFiTime.toFixed(4);
           const liFiOpportunityIndex = calculateOpportunityIndex(fromChainId);
           const totalCostsUSD = liFiFeeUSD + liFiSlippageUSD;
-          const totalCostsPerc = (totalCostsUSD/amount)*100;
-          
+          const totalCostsPerc = totalCostsUSD/amount;
+
           sheet.appendRow([
             ID,
             currentTime,
@@ -221,7 +232,7 @@ function updateBridgingData() {
             amount,
             liFiFeeUSD,
             liFiFeePerc,
-            liFiTimeFormatted,
+            liFiTime,
             liFiBridgeName,
             liFiSlippageUSD,
             liFiSlippagePerc,
@@ -233,7 +244,6 @@ function updateBridgingData() {
             liFiOpportunityIndex,
           ]);
 
-
           Logger.log(`✅ Data written for route: ${fromChainName} -> ${toChainName} with amount: ${amount}`);
         }
       }
@@ -243,18 +253,16 @@ function updateBridgingData() {
   //Orbiter update block
   //sheet.appendRow([`Orbiter routes`]);
   for (const fromChainId of orbiterChains) {
-    for (const toChainId of orbiterChains) {
+      for (const toChainId of orbiterChains) {
       if (fromChainId !== toChainId) {
-        Logger.log(`🔄 Route: fromChainId=${getChainName(fromChainId)}, toChainId=${getChainName(toChainId)}`);
+        Logger.log(`🔄 Orbiter route: ${getChainName(fromChainId)} -> ${getChainName(toChainId)}`);
         const currentTime = new Date().toUTCString();
         const fromChainName = getChainName(fromChainId);
         const toChainName = getChainName(toChainId);
-
         if (fromChainName === "unknown" || toChainName === "unknown") {
           Logger.log(`❌ ERROR: Unknown chain detected for route from ${getChainName(fromChainId)} to ${getChainName(toChainId)}`);
           continue;
         }
-
         for (const amount of BRIDGING_AMOUNTS) {
           ID = ID+1;
           const orbiterQuote = getOrbiterQuote(fromChainId, toChainId, amount);
@@ -267,6 +275,32 @@ function updateBridgingData() {
           const orbiterOpportunityIndex = calculateOpportunityIndex(fromChainId);
           const orbiterTotalCostsUSD = orbiterFeeUSD + orbiterSlippageUSD;
           const orbiterTotalCostsPerc = orbiterTotalCostsUSD/amount;
+          let fromChainIDCorrected = "";
+          let toChainIDCorrected = "";
+
+          if (fromChainId == 1151111081099710){
+            fromChainIDCorrected = "SOLANA_MAIN";
+          }
+          else {
+            if (fromChainId == 00100){
+              fromChainIDCorrected = "SUI_MAIN";
+            }
+            else{
+              fromChainIDCorrected = fromChainId;
+            }
+          }
+          
+          if (toChainId == 1151111081099710){
+            toChainIDCorrected = "SOLANA_MAIN";
+          }
+          else {
+            if (toChainId == 00100){
+              toChainIDCorrected = "SUI_MAIN";
+            }
+            else{
+              toChainIDCorrected = toChainId;
+            }
+          }
 
           sheet.appendRow([
             ID,
@@ -277,13 +311,13 @@ function updateBridgingData() {
             orbiterFeeUSD,
             orbiterFeePerc,
             orbiterTime,
-            `No data`,
+            `Orbiter`,
             orbiterSlippageUSD,
             orbiterSlippagePerc,
             orbiterRecievedAmount,
             orbiterTotalCostsUSD,
             orbiterTotalCostsPerc,
-            `https://orbiter.finance/en?src_chain=${fromChainId}&tgt_chain=${toChainId}&src_token=USDC`,
+            `https://orbiter.finance/en?src_chain=${fromChainIDCorrected}&tgt_chain=${toChainIDCorrected}&src_token=USDC`,
             80,
             orbiterOpportunityIndex,
           ]);
@@ -296,6 +330,7 @@ function updateBridgingData() {
 
   analyzeWithOpenAI(sheet);
   setColumnAlignment(sheet);
+  sortByColumn(sheet,14);
   
   Logger.log("✅ Bridging data update completed.");
 }
@@ -304,9 +339,9 @@ function updateBridgingData() {
 // Helper function to map chain IDs to names
 function getChainName(chainId) {
   const map = {
-    8453: "base",
-    10: "optimism",
-    59144: "linea",
+    8453: "Base",
+    10: "Optimism",
+    59144: "Linea",
     80094: "Berachain",
     5000: "Mantle",
     167000: "Taiko",
@@ -317,6 +352,7 @@ function getChainName(chainId) {
     146: "Sonic",
     534352: "Scroll",
     1151111081099710: "Solana",
+    00100: "Sui",
   };
 
   if (!chainId) {
@@ -336,25 +372,54 @@ function getChainName(chainId) {
 function setColumnAlignment(sheet) {
   const range = sheet.getDataRange(); // Get the range of all data
   const numColumns = range.getNumColumns(); // Get the number of columns
+  const numRows = sheet.getLastRow();
+
+  // Format header row (row 1)
+  const headerRange = sheet.getRange(1, 1, 1, numColumns);
+  headerRange.setHorizontalAlignment("center");
+  headerRange.setWrapStrategy(SpreadsheetApp.WrapStrategy.WRAP);
+  headerRange.setFontWeight("bold");
+
+  // Freeze the first row
+  sheet.setFrozenRows(1);
 
   for (let col = 1; col <= numColumns; col++) {
-    const columnRange = sheet.getRange(1, col, sheet.getLastRow(), 1);
+    const columnRange = sheet.getRange(1, col, numRows, 1);
 
+    // Align columns
     if (col === 15 || col === 19) {
       columnRange.setHorizontalAlignment("left");
     } else {
       columnRange.setHorizontalAlignment("center");
     }
 
+    // Word wrap for column 19
     if (col === 19) {
-      columnRange.setWrapStrategy(SpreadsheetApp.WrapStrategy.WRAP); // Word wrap
+      columnRange.setWrapStrategy(SpreadsheetApp.WrapStrategy.WRAP);
+    }
+
+    // Set number formats
+    if ([6, 12, 13].includes(col)) {
+      columnRange.setNumberFormat("0.0000"); // Number with 4 decimal places
+    }
+    if (col === 8) {
+      columnRange.setNumberFormat("0"); // Number with no decimals
+    }
+    if ([7, 11].includes(col)) {
+      columnRange.setNumberFormat("0.00%"); // Percent with 2 decimal places
+    }
+    if (col === 14) {
+      columnRange.setNumberFormat("0.000%"); // Percent with 4 decimal places
     }
   }
-
-  // Optional: sort all row by values in column 14
-  sheet.getRange(2, 1, sheet.getLastRow() - 1, 19).sort({ column: 14, ascending: true });
 }
 
+// Sort all rows by values in column
+function sortByColumn(sheet, number)
+{
+  const numRows = sheet.getLastRow();
+  sheet.getRange(2, 1, numRows - 1, 19).sort({ column: number, ascending: true });
+}
 
 function calculateOpportunityIndex(chainId) {
   const scores = CHAIN_SCORES[chainId];
@@ -447,19 +512,13 @@ async function analyzeWithOpenAI(sheet) {
 
   const prompt = `
     ${markdown}
-
     You're an expert AI advisor that has the whole world's crypto market data in your hands. You help choose the best crypto bridge routes available for given pairs.
     You are analyzing bridging routes from the following table. 
-    Based on the data you have, choose the top 3 best routes using the following criteria:
-    - Prioritize routes with lowest total cost (sum of Fee USD and Slippage USD).
-    - If costs are similar, evaluate benefits of using these chains in terms of rumored future airdrops (if there are rumors about it — don't make it up).
-    - After that, prefer the route with the fastest estimated bridge time.
-
+    Based on the data you have, choose the top 3 best routes. Prioritize routes with lowest total cost (sum of Fee USD and Slippage USD) and evaluation of benefits of using these chains in terms of rumored future airdrops (if there are rumors about it — don't make it up. Make fact checking before decide).
     Output the result as a JSON array of 3 objects, each with:
     - "routeID": (the Route ID number from the table),
     - "routeEstimationValue": (a number between 0 and 100 estimating its overall value, usability, benefits of using this chain because of rumors of future airdrops),
     - "routeSummary": (a brief user-friendly summary (under 4 sentences) — of why this route is good).
-
     Only return the JSON array. Do not include any other text.
     `;
 
