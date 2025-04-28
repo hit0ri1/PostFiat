@@ -28,6 +28,23 @@ const ORBITER_USDC_ADDRESSES = {
   00100: "0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7", //Sui, chain ID is unconfirmed
 };
 
+const RELAY_USDC_ADDRESSES = {
+  8453: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", // Base
+  10: "0x7F5c764cBc14f9669B88837ca1490cCa17c31607", // Optimism
+  59144: "0x176211869cA2b568f2A7D4EE941E073a821EE1ff", // Linea
+  80094: "0x549943e04f40284185054145c6E4e9568C1D3241", // Berachain
+  5000: "0x09Bc4E0D864854c6aFB6eB9A9cdF58aC190D0dF9", // Mantle
+  167000: "0x07d83526730c7438048D55A4fc0b850e2aaB6f0b", // Taiko
+  2741: "0x84A71ccD554Cc1b02749b35d22F684CC8ec987e1", // Abstract
+  122: "0x620fd5fa44BE6af63715Ef4E65DDFA0387aD13F5", // Fuse
+  1285: "0xE3F5a90F9cb311505cd691a46596599aA1A0AD7D", // Moonriver
+  1868: "0xbA9986D2381edf1DA03B0B9c1f8b00dc4AacC369", //Soneium
+  146: "0x29219dd400f2Bf60E5a23d13Be72B486D4038894", //Sonic
+  792703809: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", //Solana
+  534352: "0x06eFdBFf2a14a7c8E15944D1F4A48F9F95F663A4", //Scroll
+};
+
+//From and To wallets
 const FROM_ADDRESS = "0x7075f3b9C1c9fB099D000Ebb7676B1A972c2348E";
 const TO_ADDRESS = "0x7075f3b9C1c9fB099D000Ebb7676B1A972c2348E";
 const SOL_FROM_ADDRESS = "355D9VZJAaiGmne58YAiepAKhAnVgUhL645tBchPEyDM";
@@ -51,7 +68,7 @@ const CHAIN_SCORES = {
   1285: { airdrop: 20, devActivity: 25, costEfficiency: 50 }, // Moonriver
   1868: { airdrop: 50, devActivity: 40, costEfficiency: 50 }, // Soneium
   146: { airdrop: 50, devActivity: 40, costEfficiency: 50 }, // Sonic
-  1151111081099710: { airdrop: 70, devActivity: 90, costEfficiency: 80 }, // Solana
+  792703809: { airdrop: 70, devActivity: 90, costEfficiency: 80 }, // Solana
   534352: { airdrop: 10, devActivity: 25, costEfficiency: 50 }, // Scroll
   00100: { airdrop: 30, devActivity: 55, costEfficiency: 70 }, // Sui
 };
@@ -169,6 +186,84 @@ function getOrbiterQuote(fromChainId, toChainId, amount) {
   }
 }
 
+function getRelayQuote(fromChainId, toChainId, amount) {
+  const fromToken = RELAY_USDC_ADDRESSES[fromChainId];
+  const toToken = RELAY_USDC_ADDRESSES[toChainId];
+  const url = "https://api.relay.link/quote";
+  let fromAddress = "";
+  let toAddress = "";
+
+  if (fromChainId == 792703809)
+  {
+    fromAddress = SOL_FROM_ADDRESS;
+    toAddress = TO_ADDRESS;
+  }
+  else
+  {
+    if (toChainId == 792703809)
+    {
+      fromAddress = FROM_ADDRESS;
+      toAddress = SOL_TO_ADDRESS;
+    }
+    else{
+      fromAddress = FROM_ADDRESS;
+      toAddress = TO_ADDRESS;
+    }
+  }
+
+  const payload = {
+    useReceiver: true,
+    user: fromAddress,
+    originChainId: fromChainId,
+    destinationChainId: toChainId,
+    originCurrency: fromToken,
+    destinationCurrency: toToken,
+    amount: amount * 1000000,
+    tradeType: "EXACT_INPUT",
+    recipient: toAddress
+  };
+
+  const options = {
+    method: 'post',
+    contentType: 'application/json',
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true // optional: useful for debugging errors
+  };
+
+  try {
+    const response = UrlFetchApp.fetch(url, options);
+    const responseData = JSON.parse(response.getContentText());
+    // Extract fees
+    const fee = responseData.fees;
+    //Logger.log("Fee " + fee);
+    const feeDetails = {
+      relayer: fee.relayer.amountUsd,
+      app: fee.app.amountUsd,
+      relayerGas: fee.relayerGas.amountUsd,
+      gas: fee.gas.amountUsd,
+      relayerService: fee.relayerService.amountUsd
+    };
+    const totalFees = 
+    parseFloat(feeDetails.relayer) +
+    parseFloat(feeDetails.app) +
+    parseFloat(feeDetails.relayerGas) +
+    parseFloat(feeDetails.relayerService);
+    // Extract amount to receive
+    const receivedAmount = responseData.details.currencyOut.amountFormatted;
+
+    // Extract bridge time
+    const bridgeTime = responseData.details.timeEstimate;
+    
+    const slippageUSD = amount - receivedAmount;
+    return { totalFees, bridgeTime, slippageUSD, receivedAmount};
+
+  } catch (err) {
+    Logger.log('Error fetching Relay quote: ' + err);
+    return { totalFees: 0, bridgeTime: 0, slippageUSD: 0, receivedAmount: 0};
+  }
+}
+
+
   // 8453: Base
   // 10: Optimism
   // 59144: Linea
@@ -187,6 +282,7 @@ function updateBridgingData() {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
   const liFIChains = [8453, 10, 59144, 2741, 534352, 80094, 1151111081099710]//, 1868, 146];
   const orbiterChains = [8453, 10, 59144, 534352, 00100, 1151111081099710];
+  const relayChains = [8453, 10, 59144, 2741, 534352, 80094, 792703809]//, 1868, 146];
   let ID = 0;
 
   // Adding headers to the spreadsheet
@@ -328,6 +424,58 @@ function updateBridgingData() {
     }
   }
 
+  //Relay update block
+    for (const fromChainId of relayChains) {
+      for (const toChainId of relayChains) {
+        if (fromChainId !== toChainId) {
+        Logger.log(`🔄 Relay route: ${getChainName(fromChainId)} -> ${getChainName(toChainId)}`);
+        const currentTime = new Date().toUTCString();
+        const fromChainName = getChainName(fromChainId);
+        const toChainName = getChainName(toChainId);
+        if (fromChainName === "unknown" || toChainName === "unknown") {
+          Logger.log(`❌ ERROR: Unknown chain detected for route from ${getChainName(fromChainId)} to ${getChainName(toChainId)}`);
+          continue;
+        }
+          for (const amount of BRIDGING_AMOUNTS) {
+            ID = ID+1;
+            const relayQuote = getRelayQuote(fromChainId, toChainId, amount);
+            const relayFeeUSD = relayQuote.totalFees;
+            const relayFeePerc = relayFeeUSD/amount;
+            const relaBridgeTime = relayQuote.bridgeTime;
+            const relaySlippageUSD = relayQuote.slippageUSD;
+            const relaySlippagePerc = relaySlippageUSD/amount;
+            const relayRecievedAmount = relayQuote.receivedAmount;
+            const relayOpportunityIndex = calculateOpportunityIndex(fromChainId);
+            const relayTotalCostsUSD = relayFeeUSD + relaySlippageUSD;
+            const relayTotalCostsPerc = relayTotalCostsUSD/amount;
+            
+            sheet.appendRow([
+              ID,
+              currentTime,
+              fromChainName,
+              toChainName,
+              amount,
+              relayFeeUSD,
+              relayFeePerc,
+              relaBridgeTime,
+              `Relay`,
+              relaySlippageUSD,
+              relaySlippagePerc,
+              relayRecievedAmount,
+              relayTotalCostsUSD,
+              relayTotalCostsPerc,
+              `https://www.relay.link/bridge/${toChainName}?fromChainId=${fromChainId}&fromCurrency=${RELAY_USDC_ADDRESSES[fromChainId]}&amount=${amount}&toCurrency=${RELAY_USDC_ADDRESSES[toChainId]}`,
+              80,
+              relayOpportunityIndex,
+            ]);
+
+            Logger.log(`✅ Data written for route: ${fromChainName} -> ${toChainName} with amount: ${amount}`);
+          }
+        }
+      }
+    }
+       
+
   analyzeWithOpenAI(sheet);
   setColumnAlignment(sheet);
   sortByColumn(sheet,14);
@@ -339,20 +487,21 @@ function updateBridgingData() {
 // Helper function to map chain IDs to names
 function getChainName(chainId) {
   const map = {
-    8453: "Base",
-    10: "Optimism",
-    59144: "Linea",
-    80094: "Berachain",
-    5000: "Mantle",
-    167000: "Taiko",
-    2741: "Abstract",
-    122: "Fuse",
-    1285: "Moonriver",
-    1868: "Soneium",
-    146: "Sonic",
-    534352: "Scroll",
-    1151111081099710: "Solana",
-    00100: "Sui",
+    8453: "base",
+    10: "optimism",
+    59144: "linea",
+    80094: "berachain",
+    5000: "mantle",
+    167000: "taiko",
+    2741: "abstract",
+    122: "fuse",
+    1285: "moonriver",
+    1868: "soneium",
+    146: "sonic",
+    534352: "scroll",
+    1151111081099710: "solana",
+    792703809: "solana", // for Relay aggregator
+    00100: "sui",
   };
 
   if (!chainId) {
