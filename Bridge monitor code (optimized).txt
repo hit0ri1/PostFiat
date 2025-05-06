@@ -1,5 +1,6 @@
 // Configuration
 
+
 const LIFI_USDC_ADDRESSES = {
   8453: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", // Base
   10: "0x7F5c764cBc14f9669B88837ca1490cCa17c31607", // Optimism
@@ -45,12 +46,9 @@ const RELAY_USDC_ADDRESSES = {
 };
 
 //From and To wallets
-const FROM_ADDRESS = "0x7075f3b9C1c9fB099D000Ebb7676B1A972c2348E";
-const TO_ADDRESS = "0x7075f3b9C1c9fB099D000Ebb7676B1A972c2348E";
-const SOL_FROM_ADDRESS = "355D9VZJAaiGmne58YAiepAKhAnVgUhL645tBchPEyDM";
-const SOL_TO_ADDRESS = "355D9VZJAaiGmne58YAiepAKhAnVgUhL645tBchPEyDM";
-const SUI_FROM_ADDRESS = "0x552e0d56a2d3cf086751a1d2d47b33a9b54f540752d0dc3a96834397b2a7a25f";
-const SUI_TO_ADDRESS = "0x552e0d56a2d3cf086751a1d2d47b33a9b54f540752d0dc3a96834397b2a7a25f";
+const EVM_ADDRESS = "0x7075f3b9C1c9fB099D000Ebb7676B1A972c2348E";
+const SOL_ADDRESS = "355D9VZJAaiGmne58YAiepAKhAnVgUhL645tBchPEyDM";
+const SUI_ADDRESS = "0x552e0d56a2d3cf086751a1d2d47b33a9b54f540752d0dc3a96834397b2a7a25f";
 
 // Different bridging amounts to test (in USDC)
 const BRIDGING_AMOUNTS = [770];
@@ -73,73 +71,8 @@ const CHAIN_SCORES = {
   00100: { airdrop: 30, devActivity: 55, costEfficiency: 70 }, // Sui
 };
 
-const HEADERS = {
-  "User-Agent": "Mozilla/5.0",
-  "Accept": "application/json",
-};
-
-// Modify the getLiFiQuote function to accept any amount
-function getLiFiQuote(fromChainId, toChainId, amount) {
-  // Early exit for invalid parameters
-  if (fromChainId == null || toChainId == null || amount == null) {
-    Logger.log(`❌ ERROR: Undefined or null chainId or amount passed to Li.Fi`);
-    return { fee: 0, time: 0, bridgeName: '', slippageUSD: 0, fromAmount: 0, toAmount: 0 };
-  }
-
-  const fromToken = LIFI_USDC_ADDRESSES[fromChainId];
-  const toToken = LIFI_USDC_ADDRESSES[toChainId];
-
-  // Build URL using template literals for easier reading and maintenance
-  let url = `https://li.quest/v1/quote?fromChain=${fromChainId}&toChain=${toChainId}&fromToken=${fromToken}&toToken=${toToken}&fromAmount=${amount * 1000000}&fromAddress=${FROM_ADDRESS}&toAddress=${TO_ADDRESS}`;
-
-  // Apply special case handling for specific chain IDs
-  if (fromChainId === 1151111081099710) {
-    url = `https://li.quest/v1/quote?fromChain=${fromChainId}&toChain=${toChainId}&fromToken=${fromToken}&toToken=${toToken}&fromAmount=${amount * 1000000}&fromAddress=${SOL_FROM_ADDRESS}&toAddress=${TO_ADDRESS}`;
-  } else if (toChainId === 1151111081099710) {
-    url = `https://li.quest/v1/quote?fromChain=${fromChainId}&toChain=${toChainId}&fromToken=${fromToken}&toToken=${toToken}&fromAmount=${amount * 1000000}&fromAddress=${FROM_ADDRESS}&toAddress=${SOL_TO_ADDRESS}`;
-  }
-  
-  try {
-    // Fetch data with retries
-    const data = fetchJsonWithRetries(url, 3, 1000); // 3 retries with 1-second delay
-
-    // Check for available quote
-    if (!data.estimate) {
-      Logger.log(`❌ No quote available for route from ${getChainName(fromChainId)} to ${getChainName(toChainId)}`);
-      return { fee: 0, time: 0, bridgeName: 'Route Unavailable', slippageUSD: 0, fromAmount: 0, toAmount: 0 };
-    }
-
-    const fromAmount = parseFloat(data.estimate.fromAmount)/1000000 || 0;
-    const toAmount = parseFloat(data.estimate.toAmount)/1000000 || 0;
-    const slippage = fromAmount !== 0 ? (fromAmount - toAmount) / fromAmount : 0;
-    const slippageUSD = slippage * fromAmount;
-
-    // Consolidate fee and gas calculation
-    const feeCosts = data.estimate.feeCosts || [];
-    const totalFeeUSD = feeCosts.reduce((sum, fee) => sum + parseFloat(fee.amountUSD || 0), 0);
-
-    const gasCosts = data.estimate.gasCosts || [];
-    const totalGasUSD = gasCosts.reduce((sum, gas) => sum + parseFloat(gas.amountUSD || 0), 0);
-
-    const finalFeeUSD = totalFeeUSD + totalGasUSD;
-
-    return {
-      fee: finalFeeUSD,
-      time: parseInt(data.estimate.executionDuration) || 0,
-      bridgeName: data.toolDetails.name || 'Unknown',
-      slippageUSD: slippageUSD,
-      fromAmount: fromAmount,
-      toAmount: toAmount
-    };
-  } 
-    catch (e) {
-    // Log the error
-    Logger.log(`❌ Li.Fi Error: ${e}`);
-    return { fee: 0, time: 0, bridgeName: 'Error', slippageUSD: 0, fromAmount: 0, toAmount: 0 };
-  }
-}
-
-function parseLiFiQuote(data) {
+//-------------LIFI parsing---------------------
+function parseLIFIQuote(data) {
   const fromAmount = parseFloat(data.estimate.fromAmount)/1000000 || 0;
   const toAmount = parseFloat(data.estimate.toAmount)/1000000 || 0;
   const slippage = fromAmount !== 0 ? (fromAmount - toAmount) / fromAmount : 0;
@@ -152,10 +85,8 @@ function parseLiFiQuote(data) {
   if (feeUSD.length > 0) {
       totalFeeUSD = feeUSD.reduce((sum, fee) => sum + parseFloat(fee.amountUSD || 0), 0);
     }
-  //Logger.log("fee " +  JSON.stringify(totalFeeUSD));
-  //Logger.log("total fee " + totalFeeUSD);
   const totalGasUSD = gasUSD.reduce((sum, gas) => sum + parseFloat(gas.amountUSD || 0), 0);
-
+  
   return {
     fee: totalFeeUSD,
     gas: totalGasUSD,
@@ -166,11 +97,13 @@ function parseLiFiQuote(data) {
   };
 }
 
-function processLifiRoutes(sheet, liFIChains, ID) {
+//-------------LIFI processing--------------------
+function processLIFIRoutes(sheet, liFIChains, ID) {
   const rowsToAppend = [];
   const requests = [];
-  const requestMetadata = [];  // So we know which request corresponds to which route
+  const requestMetadata = [];
 
+  // Prepare requests
   for (const fromChainId of liFIChains) {
     const fromChainName = getChainName(fromChainId);
     if (fromChainName === "unknown") continue;
@@ -181,17 +114,10 @@ function processLifiRoutes(sheet, liFIChains, ID) {
       if (toChainName === "unknown") continue;
 
       for (const amount of BRIDGING_AMOUNTS) {
-        // const payload = {
-        //   fromChain: fromChainId,
-        //   toChain: toChainId,
-        //   fromToken: LIFI_USDC_ADDRESSES[fromChainId],
-        //   toToken: LIFI_USDC_ADDRESSES[toChainId],
-        //   fromAmount: amount.toString(),
-        //   fromAddress: FROM_ADDRESS,
-        //   toAddress: TO_ADDRESS,
-        // };
+        const fromAddress = (fromChainName === "solana") ? SOL_ADDRESS : EVM_ADDRESS;
+        const toAddress = (toChainName === "solana") ? SOL_ADDRESS : EVM_ADDRESS;
 
-        const queryString = `?fromChain=${fromChainId}&toChain=${toChainId}&fromToken=${LIFI_USDC_ADDRESSES[fromChainId]}&toToken=${LIFI_USDC_ADDRESSES[toChainId]}&fromAmount=${amount*1000000}&fromAddress=${FROM_ADDRESS}&toAddress=${TO_ADDRESS}`;
+        const queryString = `?fromChain=${fromChainId}&toChain=${toChainId}&fromToken=${LIFI_USDC_ADDRESSES[fromChainId]}&toToken=${LIFI_USDC_ADDRESSES[toChainId]}&fromAmount=${amount * 1000000}&fromAddress=${fromAddress}&toAddress=${toAddress}`;
 
         requests.push({
           url: "https://li.quest/v1/quote" + queryString,
@@ -210,205 +136,422 @@ function processLifiRoutes(sheet, liFIChains, ID) {
     }
   }
 
-  const responses = UrlFetchApp.fetchAll(requests);
-  
-  // Debug code for showing raw response
-  // for (let i = 0; i < responses.length; i++) {
-  //   const res = responses[i];
-  //   const content = res.getContentText();
-  //   try {
-  //   const parsed = JSON.parse(content);
-  //   Logger.log(`📄 Parsed JSON [${i}]: ${JSON.stringify(parsed, null, 2)}`);
-  //   } catch (e) {
-  //   Logger.log(`❌ Failed to parse JSON for response [${i}]: ${content}`);
-  //   }
-  // }
+  let responses = UrlFetchApp.fetchAll(requests);
+  let retries = 0;
+  const maxRetries = 4;
 
+  while (retries <= maxRetries) {
+    const failedRequests = [];
+    const failedMetadata = [];
 
+    for (let i = 0; i < responses.length; i++) {
+      const res = responses[i];
+      const meta = requestMetadata[i];
+      ID++;
 
-  for (let i = 0; i < responses.length; i++) {
-    const res = responses[i];
-    const meta = requestMetadata[i];
-    ID++;
+      try {
+        Logger.log(`🔄 Jumper route: ${getChainName(meta.fromChainId)} -> ${getChainName(meta.toChainId)}`)
 
-    try {
-      const currentTime = new Date().toUTCString();
-      const data = JSON.parse(res.getContentText());
-      const quote = parseLiFiQuote(data);
+        const content = res.getContentText();
+        const data = JSON.parse(content);
+        const quote = parseLIFIQuote(data);
+        const feeUSD = quote.fee;
+        const gasUSD = quote.gas;
+        const slippageUSD = quote.slippageUSD;
+        const totalCostsUSD = feeUSD + gasUSD + slippageUSD;
 
-      const feeUSD = quote.fee;
-      const gasUSD = quote.gas;
-      const slippageUSD = quote.slippageUSD;
-      const totalCostsUSD = feeUSD + gasUSD + slippageUSD;
-
-      rowsToAppend.push([
-        ID,
-        currentTime,
-        meta.fromChainName,
-        meta.toChainName,
-        meta.amount,
-        feeUSD,
-        feeUSD / meta.amount,
-        quote.time + 1e-8,
-        quote.bridgeName,
-        slippageUSD,
-        slippageUSD / meta.amount,
-        quote.toAmount,
-        totalCostsUSD,
-        totalCostsUSD / meta.amount,
-        `https://jumper.exchange/?fromAmount=${meta.amount}&fromChain=${meta.fromChainId}&fromToken=${LIFI_USDC_ADDRESSES[meta.fromChainId]}&toChain=${meta.toChainId}&toToken=${LIFI_USDC_ADDRESSES[meta.toChainId]}`,
-        80,
-        calculateOpportunityIndex(meta.fromChainId),
-      ]);
-
-    } catch (error) {
-      Logger.log(`❌ LiFi API failed for ${meta.fromChainName} -> ${meta.toChainName}, amount: ${meta.amount}`);
-      Logger.log(error);
+        rowsToAppend.push([
+          ID,
+          new Date().toUTCString(),
+          meta.fromChainName,
+          meta.toChainName,
+          meta.amount,
+          feeUSD,
+          feeUSD / meta.amount,
+          quote.time + 1e-8,
+          quote.bridgeName,
+          slippageUSD,
+          slippageUSD / meta.amount,
+          quote.toAmount,
+          totalCostsUSD,
+          totalCostsUSD / meta.amount,
+          `https://jumper.exchange/?fromAmount=${meta.amount}&fromChain=${meta.fromChainId}&fromToken=${LIFI_USDC_ADDRESSES[meta.fromChainId]}&toChain=${meta.toChainId}&toToken=${LIFI_USDC_ADDRESSES[meta.toChainId]}`,
+          80,
+          calculateOpportunityIndex(meta.fromChainId),
+        ]);
+      } catch (error) {
+        // Only retry if retries left
+        if (retries < maxRetries) {
+          Logger.log(`🔁 Retrying failed request: ${meta.fromChainName} -> ${meta.toChainName}, amount: ${meta.amount}`);
+          Logger.log(error.toString());
+          failedRequests.push(requests[i]);
+          failedMetadata.push(meta);
+        } else {
+          Logger.log(`❌ Final fail: ${meta.fromChainName} -> ${meta.toChainName}, amount: ${meta.amount}`);
+          Logger.log(error.toString());
+        }
+      }
+      Logger.log(`✅ Data written for route: ${meta.fromChainName} -> ${meta.toChainName} with amount: ${meta.amount}`);
     }
+
+    if (failedRequests.length === 0) break;
+
+    Logger.log(`🔄 Retry attempt ${retries + 1} with ${failedRequests.length} failed routes.`);
+    responses = UrlFetchApp.fetchAll(failedRequests);
+    requests.length = 0;
+    requestMetadata.length = 0;
+
+    // Retry only failed
+    for (let j = 0; j < failedRequests.length; j++) {
+      requests.push(failedRequests[j]);
+      requestMetadata.push(failedMetadata[j]);
+    }
+
+    retries++;
   }
 
-  // Batch write to sheet
   if (rowsToAppend.length > 0) {
     const startRow = sheet.getLastRow() + 1;
     sheet.getRange(startRow, 1, rowsToAppend.length, rowsToAppend[0].length).setValues(rowsToAppend);
   }
-
   return ID;
 }
 
 
+//--------------ORBITER parsing------------------------
+function parseORBITERQuote(data) {
+  const fee = ((Number(data.result.tradeFeeAmount) + Number(data.result.withholdingFeeAmount) + Number(data.result.router.swapFee))) || 0;
+  const time = data.result.router.spentTime || 0; // In seconds
+  const slippageUSD = 0; //always 0 for Orbiter
+  const toAmount = data.result.targetAmount;
+  return { fee, time, slippageUSD, toAmount};
+}
 
-function getOrbiterQuote(fromChainId, toChainId, amount) {
-  if (fromChainId == 1151111081099710){
-      fromChainId = "SOLANA_MAIN";
-  }
-  if (fromChainId == 00100){
-      fromChainId = "SUI_MAIN";
-  }
-  if (toChainId == 1151111081099710){
-    toChainId = "SOLANA_MAIN";
+//-------------ORBITER processing----------------------
+function processORBITERRoutes(sheet, orbiterChains, ID) {
+  const rowsToAppend = [];
+  const requests = [];
+  const requestMetadata = [];
+
+  // Prepare requests
+  for (const fromChainId of orbiterChains) {
+  const fromChainName = getChainName(fromChainId);
+  if (fromChainName === "unknown") continue;
+
+    for (const toChainId of orbiterChains) {
+    if (fromChainId === toChainId) continue;
+    const toChainName = getChainName(toChainId);
+    if (toChainName === "unknown") continue;
+
+      for (const amount of BRIDGING_AMOUNTS) {
+        let fromChainIdCorrected = fromChainId;
+        let toChainIdCorrected = toChainId;
+
+        if (fromChainId === 1151111081099710) {
+          fromChainIdCorrected = "SOLANA_MAIN";
+        } else if (fromChainId === 00100) {
+          fromChainIdCorrected = "SUI_MAIN";
+        }
+
+        if (toChainId === 1151111081099710) {
+          toChainIdCorrected = "SOLANA_MAIN";
+        } else if (toChainId === 00100) {
+          toChainIdCorrected = "SUI_MAIN";
+        }
+
+        const queryString = `${fromChainIdCorrected}%2F${toChainIdCorrected}-USDC%2FUSDC&value=${amount*1000000}&endpoint=`;
+
+        requests.push({
+          url: "https://api.orbiter.finance/sdk/routers/simulation/receiveAmount?line=" + queryString,
+          method: "get",
+          muteHttpExceptions: true,
+        });
+
+        requestMetadata.push({
+          fromChainIdCorrected,
+          toChainIdCorrected,
+          fromChainName,
+          toChainName,
+          amount,
+        });
+      }
     }
-  if (toChainId == 00100){
-    toChainId = "SUI_MAIN";
   }
 
-  const url = `https://api.orbiter.finance/sdk/routers/simulation/receiveAmount?line=${fromChainId}%2F${toChainId}-USDC%2FUSDC&value=${amount*1000000}&endpoint=`
+  let responses = UrlFetchApp.fetchAll(requests);
+  let retries = 0;
+  const maxRetries = 4;
 
-  try {
-    const data = fetchJsonWithRetries(url, 3, 1000); // 3 retries with 1 second delay
-    
-    if (!data.result) {
-      Logger.log(`❌ Error: No 'result' found in API response.`);
-      return { fee: 0, time: 0, slippageUSD: 0, receivedAmount: 0 };
+  while (retries <= maxRetries) {
+    const failedRequests = [];
+    const failedMetadata = [];
+
+    for (let i = 0; i < responses.length; i++) {
+      const res = responses[i];
+      const meta = requestMetadata[i];
+      ID++;
+
+      try {
+        Logger.log(`🔄 Orbiter route: ${getChainName(meta.fromChainIdCorrected)} -> ${getChainName(meta.toChainIdCorrected)}`)
+        
+        const content = res.getContentText();
+        const data = JSON.parse(content);
+        const quote = parseORBITERQuote(data);
+        const feeUSD = quote.fee;
+        const slippageUSD = quote.slippageUSD;
+        const totalCostsUSD = feeUSD + slippageUSD;
+
+        rowsToAppend.push([
+          ID,
+          new Date().toUTCString(),
+          meta.fromChainName,
+          meta.toChainName,
+          meta.amount,
+          feeUSD,
+          feeUSD / meta.amount,
+          quote.time + 1e-8,
+          "Orbiter",
+          slippageUSD,
+          slippageUSD / meta.amount,
+          quote.toAmount,
+          totalCostsUSD,
+          totalCostsUSD / meta.amount,
+          `https://orbiter.finance/en?src_chain=${meta.fromChainIdCorrected}&tgt_chain=${meta.toChainIdCorrected}&src_token=USDC`,
+          80,
+          calculateOpportunityIndex(meta.fromChainId),
+        ]);
+      } catch (error) {
+        // Only retry if retries left
+        if (retries < maxRetries) {
+          Logger.log(`🔁 Retrying failed request: ${meta.fromChainName} -> ${meta.toChainName}, amount: ${meta.amount}`);
+          Logger.log(error.toString());
+          failedRequests.push(requests[i]);
+          failedMetadata.push(meta);
+        } else {
+          Logger.log(`❌ Final fail: ${meta.fromChainName} -> ${meta.toChainName}, amount: ${meta.amount}`);
+          //Logger.log("URL " + requests.url);
+          Logger.log(error.toString());
+        }
+      }
+
+      Logger.log(`✅ Data written for route: ${meta.fromChainName} -> ${meta.toChainName} with amount: ${meta.amount}`);
     }
 
-    const fee = ((Number(data.result.tradeFeeAmount) + Number(data.result.withholdingFeeAmount) + Number(data.result.router.swapFee))) || 0;
-    //Logger.log(`Trade fee ` + Number(data.result.tradeFeeAmount));
-    //Logger.log(`Witholding fee `+ Number(data.result.withholdingFeeAmount));
-    //Logger.log (`Total fee ` + fee);
-    const time = data.result.router.spentTime || 0; // In seconds
-    const slippageUSD = 0; //always 0 for Orbiter
-    const receivedAmount = data.result.targetAmount;
-    return { fee, time, slippageUSD, receivedAmount, fromChainId, toChainId};
-  } 
+    if (failedRequests.length === 0) break;
+
+    Logger.log(`🔄 Retry attempt ${retries + 1} with ${failedRequests.length} failed routes.`);
+    responses = UrlFetchApp.fetchAll(failedRequests);
+    requests.length = 0;
+    requestMetadata.length = 0;
+
+    // Retry only failed
+    for (let j = 0; j < failedRequests.length; j++) {
+      requests.push(failedRequests[j]);
+      requestMetadata.push(failedMetadata[j]);
+    }
+
+    retries++;
+  }
+
+  if (rowsToAppend.length > 0) {
+    const startRow = sheet.getLastRow() + 1;
+    sheet.getRange(startRow, 1, rowsToAppend.length, rowsToAppend[0].length).setValues(rowsToAppend);
+  }
+  return ID;
+}
+
+
+//--------------RELAY parsing--------------------------
+function parseRELAYQuote(data) {
+  // Extract fees
+  const fee = data.fees;
+  const feeDetails = {
+    relayer: fee.relayer.amountUsd,
+    app: fee.app.amountUsd,
+    relayerGas: fee.relayerGas.amountUsd,
+    gas: fee.gas.amountUsd,
+    relayerService: fee.relayerService.amountUsd
+  };
+  const totalFees = 
+  parseFloat(feeDetails.relayer) +
+  parseFloat(feeDetails.app) +
+  parseFloat(feeDetails.relayerGas) +
+  parseFloat(feeDetails.gas) +
+  parseFloat(feeDetails.relayerService);
+
+  // Extract amount to receive
+  const toAmount = data.details.currencyOut.amountFormatted;
+  // Extract bridge time
+  const bridgeTime = data.details.timeEstimate;
   
-  catch (e) {
-    Logger.log(`❌ Error: ${e}`);
-    return { fee: 0, time: 0, slippageUSD: 0, freceivedAmount: 0, fromChainId, toChainId };
-  }
-}
-
-function getRelayQuote(fromChainId, toChainId, amount) {
-  const fromToken = RELAY_USDC_ADDRESSES[fromChainId];
-  const toToken = RELAY_USDC_ADDRESSES[toChainId];
-  const url = "https://api.relay.link/quote";
-  let fromAddress = "";
-  let toAddress = "";
-
-  if (fromChainId == 792703809)
-  {
-    fromAddress = SOL_FROM_ADDRESS;
-    toAddress = TO_ADDRESS;
-  }
-  else
-  {
-    if (toChainId == 792703809)
-    {
-      fromAddress = FROM_ADDRESS;
-      toAddress = SOL_TO_ADDRESS;
-    }
-    else{
-      fromAddress = FROM_ADDRESS;
-      toAddress = TO_ADDRESS;
-    }
-  }
-
-  const payload = {
-    useReceiver: true,
-    user: fromAddress,
-    originChainId: fromChainId,
-    destinationChainId: toChainId,
-    originCurrency: fromToken,
-    destinationCurrency: toToken,
-    amount: amount * 1000000,
-    tradeType: "EXACT_INPUT",
-    recipient: toAddress
-  };
-
-  const options = {
-    method: 'post',
-    contentType: 'application/json',
-    payload: JSON.stringify(payload),
-    muteHttpExceptions: true // optional: useful for debugging errors
-  };
-
-  try {
-    const response = UrlFetchApp.fetch(url, options);
-    const responseData = JSON.parse(response.getContentText());
-    // Extract fees
-    const fee = responseData.fees;
-    //Logger.log("Fee " + fee);
-    const feeDetails = {
-      relayer: fee.relayer.amountUsd,
-      app: fee.app.amountUsd,
-      relayerGas: fee.relayerGas.amountUsd,
-      gas: fee.gas.amountUsd,
-      relayerService: fee.relayerService.amountUsd
-    };
-    const totalFees = 
-    parseFloat(feeDetails.relayer) +
-    parseFloat(feeDetails.app) +
-    parseFloat(feeDetails.relayerGas) +
-    parseFloat(feeDetails.relayerService);
-    // Extract amount to receive
-    const receivedAmount = responseData.details.currencyOut.amountFormatted;
-
-    // Extract bridge time
-    const bridgeTime = responseData.details.timeEstimate;
-    
-    const slippageUSD = amount - receivedAmount;
-    return { totalFees, bridgeTime, slippageUSD, receivedAmount};
-
-  } catch (err) {
-    Logger.log('Error fetching Relay quote: ' + err);
-    return { totalFees: 0, bridgeTime: 0, slippageUSD: 0, receivedAmount: 0};
-  }
+  return { totalFees, bridgeTime, toAmount};
 }
 
 
-  // 8453: Base
-  // 10: Optimism
-  // 59144: Linea
-  // 80094: Berachain
-  // 5000: Mantle
-  // 167000: Taiko
-  // 2741: Abstract
-  // 122: Fuse
-  // 1285: Moonriver
-  // 1868: Soneium
-  // 146: Sonic
-  // 1151111081099710: Solana
-  // 534352: Scroll
+//--------------RELAY processing------------------------
+function processRELAYRoutes(sheet, relayChains, ID) {
+  const rowsToAppend = [];
+  const requests = [];
+  const requestMetadata = [];
+
+  // Prepare requests
+  for (const fromChainId of relayChains) {
+  const fromChainName = getChainName(fromChainId);
+  if (fromChainName === "unknown") continue;
+
+    for (const toChainId of relayChains) {
+    if (fromChainId === toChainId) continue;
+    const toChainName = getChainName(toChainId);
+    if (toChainName === "unknown") continue;
+
+      for (const fromAmount of BRIDGING_AMOUNTS) {
+        const fromToken = RELAY_USDC_ADDRESSES[fromChainId];
+        const toToken = RELAY_USDC_ADDRESSES[toChainId];
+        const url = "https://api.relay.link/quote";
+        let fromAddress = "";
+        let toAddress = "";
+
+        if (fromChainId == 792703809)
+        {
+          fromAddress = SOL_ADDRESS;
+          toAddress = EVM_ADDRESS;
+        }
+        else
+        {
+          if (toChainId == 792703809)
+          {
+            fromAddress = EVM_ADDRESS;
+            toAddress = SOL_ADDRESS;
+          }
+          else{
+            fromAddress = EVM_ADDRESS;
+            toAddress = EVM_ADDRESS;
+          }
+        }
+
+        const payload = {
+          useReceiver: true,
+          user: fromAddress,
+          originChainId: fromChainId,
+          destinationChainId: toChainId,
+          originCurrency: fromToken,
+          destinationCurrency: toToken,
+          amount: fromAmount * 1000000,
+          tradeType: "EXACT_INPUT",
+          recipient: toAddress
+        };
+
+        requests.push({
+          url: url,
+          method: 'post',
+          contentType: 'application/json',
+          payload: JSON.stringify(payload),
+          muteHttpExceptions: true // optional: useful for debugging errors
+        });
+
+        requestMetadata.push({
+          fromChainId,
+          toChainId,
+          fromAddress,
+          toAddress,
+          fromChainName,
+          toChainName,
+          fromAmount,
+          url,
+        });
+      }
+    }
+  }
+
+  let responses = UrlFetchApp.fetchAll(requests);
+
+  let retries = 0;
+  const maxRetries = 4;
+
+  while (retries <= maxRetries) {
+    const failedRequests = [];
+    const failedMetadata = [];
+
+    for (let i = 0; i < responses.length; i++) {
+      const res = responses[i];
+      const meta = requestMetadata[i];
+      ID++;
+
+      try {
+        Logger.log(`🔄 Relay route: ${meta.fromChainName} -> ${meta.toChainName}`)
+        
+        const content = res.getContentText();
+        const data = JSON.parse(content);
+        const quote = parseRELAYQuote(data);
+        const relayFeeUSD = quote.totalFees;
+        const relayFeePerc = relayFeeUSD/meta.fromAmount;
+        const relaBridgeTime = quote.bridgeTime;
+        const relaySlippageUSD = meta.fromAmount - quote.toAmount;
+        const relaySlippagePerc = relaySlippageUSD/meta.fromAmount;
+        const relayRecievedAmount = quote.toAmount;
+        const relayOpportunityIndex = calculateOpportunityIndex(meta.fromChainId);
+        const relayTotalCostsUSD = relayFeeUSD + relaySlippageUSD;
+        const relayTotalCostsPerc = relayTotalCostsUSD/meta.fromAmount;
+
+        rowsToAppend.push([
+          ID,
+          new Date().toUTCString(),
+          meta.fromChainName,
+          meta.toChainName,
+          meta.fromAmount,
+          relayFeeUSD,
+          relayFeePerc,
+          relaBridgeTime + 1e-8,
+          "Relay",
+          relaySlippageUSD,
+          relaySlippagePerc,
+          relayRecievedAmount,
+          relayTotalCostsUSD,
+          relayTotalCostsPerc,
+          `https://www.relay.link/bridge/${meta.toChainName}?fromChainId=${meta.fromChainId}&fromCurrency=${RELAY_USDC_ADDRESSES[meta.fromChainId]}&amount=${meta.fromAmount}&toCurrency=${RELAY_USDC_ADDRESSES[meta.toChainId]}`,
+          80,
+          relayOpportunityIndex,
+        ]);
+      } catch (error) {
+        // Only retry if retries left
+        if (retries < maxRetries) {
+          Logger.log(`🔁 Retrying failed request: ${meta.fromChainName} -> ${meta.toChainName}, amount: ${meta.fromAmount}`);
+          Logger.log(error.toString());
+          failedRequests.push(requests[i]);
+          failedMetadata.push(meta);
+        } else {
+          Logger.log(`❌ Final fail: ${meta.fromChainName} -> ${meta.toChainName}, amount: ${meta.fromAmount}`);
+          //Logger.log("URL " + requests.url);
+          Logger.log(error.toString());
+        }
+      }
+
+      Logger.log(`✅ Data written for route: ${meta.fromChainName} -> ${meta.toChainName} with amount: ${meta.fromAmount}`);
+    }
+
+    if (failedRequests.length === 0) break;
+
+    Logger.log(`🔄 Retry attempt ${retries + 1} with ${failedRequests.length} failed routes.`);
+    responses = UrlFetchApp.fetchAll(failedRequests);
+    requests.length = 0;
+    requestMetadata.length = 0;
+
+    // Retry only failed
+    for (let j = 0; j < failedRequests.length; j++) {
+      requests.push(failedRequests[j]);
+      requestMetadata.push(failedMetadata[j]);
+    }
+
+    retries++;
+  }
+
+  if (rowsToAppend.length > 0) {
+    const startRow = sheet.getLastRow() + 1;
+    sheet.getRange(startRow, 1, rowsToAppend.length, rowsToAppend[0].length).setValues(rowsToAppend);
+  }
+  return ID;
+}
+
 
 function updateBridgingData() {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
@@ -421,263 +564,13 @@ function updateBridgingData() {
   sheet.clear();
   sheet.appendRow(['Route ID', 'Timestamp', 'From Chain', 'To Chain', 'Bridging Amount (USDC)', 'Fee (USD)', 'Fee (%)', 'Est. Bridge Time (s)', 'Bridge Name', 'Slippage (USD)', 'Slippage (%)', 'Received Amount (USDC)', `Total costs (USD)`, `Total costs (%)`,'Link', `Est PFT points`, `Chain Opportunity Index`,'chatGPT score', `chatGPT analyze`]);
   setColumnAlignment(sheet);
-  ID = processLifiRoutes(sheet, liFIChains, ID);
-  
-  // LiFi update block
-  //sheet.appendRow([`LiFi routes`]);
-  // for (const fromChainId of liFIChains) {
-  //   for (const toChainId of liFIChains) {
-  //     if (fromChainId !== toChainId) {
-  //       Logger.log(`🔄 Jumper route: ${getChainName(fromChainId)} -> ${getChainName(toChainId)}`);
-  //       const currentTime = new Date().toUTCString();
+  ID = processLIFIRoutes(sheet, liFIChains, ID);
+  ID = processORBITERRoutes(sheet, orbiterChains, ID);
+  ID = processRELAYRoutes (sheet, relayChains, ID);
 
-  //       const fromChainName = getChainName(fromChainId);
-  //       const toChainName = getChainName(toChainId);
-
-  //       if (fromChainName === "unknown" || toChainName === "unknown") {
-  //         Logger.log(`❌ ERROR: Unknown chain detected for route from ${getChainName(fromChainId)} to ${getChainName(toChainId)}`);
-  //         continue;
-  //       }
-
-  //       for (const amount of BRIDGING_AMOUNTS) {
-  //         ID = ID+1;
-  //         const liFiQuote = getLiFiQuote(fromChainId, toChainId, amount);
-  //         const liFiFeeUSD = liFiQuote.fee;
-  //         const liFiFeePerc = liFiFeeUSD/amount;
-  //         const liFiTime = liFiQuote.time + 0.00000001;//adding small number for Google to recognize it as number and not date
-  //         const liFiBridgeName = liFiQuote.bridgeName;
-  //         const liFiSlippageUSD = liFiQuote.slippageUSD;
-  //         const liFiSlippagePerc = liFiSlippageUSD/amount;
-  //         const liFiReceivedAmount = liFiQuote.toAmount;
-  //         const liFiOpportunityIndex = calculateOpportunityIndex(fromChainId);
-  //         const totalCostsUSD = liFiFeeUSD + liFiSlippageUSD;
-  //         const totalCostsPerc = totalCostsUSD/amount;
-
-  //         sheet.appendRow([
-  //           ID,
-  //           currentTime,
-  //           fromChainName,
-  //           toChainName,
-  //           amount,
-  //           liFiFeeUSD,
-  //           liFiFeePerc,
-  //           liFiTime,
-  //           liFiBridgeName,
-  //           liFiSlippageUSD,
-  //           liFiSlippagePerc,
-  //           liFiReceivedAmount,
-  //           totalCostsUSD,
-  //           totalCostsPerc,
-  //           `https://jumper.exchange/?fromAmount=${amount}&fromChain=${fromChainId}&fromToken=${LIFI_USDC_ADDRESSES[fromChainId]}&toChain=${toChainId}&toToken=${LIFI_USDC_ADDRESSES[toChainId]}`,
-  //           80,
-  //           liFiOpportunityIndex,
-  //         ]);
-
-  //         Logger.log(`✅ Data written for route: ${fromChainName} -> ${toChainName} with amount: ${amount}`);
-  //       }
-  //     }
-  //   }
-  // }
-
-
-  // LiFi update block (optimized)
-  // const rowsToAppend = [];
-  // for (const fromChainId of liFIChains) {
-  //   const fromChainName = getChainName(fromChainId);
-  //   if (fromChainName === "unknown") continue;
-
-  //   for (const toChainId of liFIChains) {
-  //     if (fromChainId === toChainId) continue;
-  //     const toChainName = getChainName(toChainId);
-  //     if (toChainName === "unknown") continue;
-
-  //     Logger.log(`🔄 Jumper route: ${fromChainName} -> ${toChainName}`);
-  //     const currentTime = new Date().toUTCString();
-
-  //     if (fromChainName === "unknown" || toChainName === "unknown") {
-  //       Logger.log(`❌ ERROR: Unknown chain detected for route from ${getChainName(fromChainId)} to ${getChainName(toChainId)}`);
-  //       continue;
-  //     }
-
-  //     for (const amount of BRIDGING_AMOUNTS) {
-  //       ID = ID+1;
-  //       const liFiQuote = getLiFiQuote(fromChainId, toChainId, amount);
-  //       const liFiFeeUSD = liFiQuote.fee;
-  //       const liFiFeePerc = liFiFeeUSD/amount;
-  //       const liFiTime = liFiQuote.time + 0.00000001;//adding small number for Google to recognize it as number and not date
-  //       const liFiBridgeName = liFiQuote.bridgeName;
-  //       const liFiSlippageUSD = liFiQuote.slippageUSD;
-  //       const liFiSlippagePerc = liFiSlippageUSD/amount;
-  //       const liFiReceivedAmount = liFiQuote.toAmount;
-  //       const liFiOpportunityIndex = calculateOpportunityIndex(fromChainId);
-  //       const totalCostsUSD = liFiFeeUSD + liFiSlippageUSD;
-  //       const totalCostsPerc = totalCostsUSD/amount;
-
-  //       rowsToAppend.push([
-  //         ID,
-  //         currentTime,
-  //         fromChainName,
-  //         toChainName,
-  //         amount,
-  //         liFiFeeUSD,
-  //         liFiFeePerc,
-  //         liFiTime,
-  //         liFiBridgeName,
-  //         liFiSlippageUSD,
-  //         liFiSlippagePerc,
-  //         liFiReceivedAmount,
-  //         totalCostsUSD,
-  //         totalCostsPerc,
-  //         `https://jumper.exchange/?fromAmount=${amount}&fromChain=${fromChainId}&fromToken=${LIFI_USDC_ADDRESSES[fromChainId]}&toChain=${toChainId}&toToken=${LIFI_USDC_ADDRESSES[toChainId]}`,
-  //         80,
-  //         liFiOpportunityIndex,
-  //       ]);
-
-  //       Logger.log(`✅ Data written for route: ${fromChainName} -> ${toChainName} with amount: ${amount}`);
-  //     }
-  //   }
-  // }
-  
-  // // Batch write to sheet
-  // if (rowsToAppend.length > 0) {
-  //   const startRow = sheet.getLastRow() + 1;
-  //   const numRows = rowsToAppend.length;
-  //   const numCols = rowsToAppend[0].length;
-  //   sheet.getRange(startRow, 1, numRows, numCols).setValues(rowsToAppend);
-  // }
-
-  //Orbiter update block
-  //sheet.appendRow([`Orbiter routes`]);
-  for (const fromChainId of orbiterChains) {
-      for (const toChainId of orbiterChains) {
-      if (fromChainId !== toChainId) {
-        Logger.log(`🔄 Orbiter route: ${getChainName(fromChainId)} -> ${getChainName(toChainId)}`);
-        const currentTime = new Date().toUTCString();
-        const fromChainName = getChainName(fromChainId);
-        const toChainName = getChainName(toChainId);
-        if (fromChainName === "unknown" || toChainName === "unknown") {
-          Logger.log(`❌ ERROR: Unknown chain detected for route from ${getChainName(fromChainId)} to ${getChainName(toChainId)}`);
-          continue;
-        }
-        for (const amount of BRIDGING_AMOUNTS) {
-          ID = ID+1;
-          const orbiterQuote = getOrbiterQuote(fromChainId, toChainId, amount);
-          const orbiterFeeUSD = orbiterQuote.fee;
-          const orbiterFeePerc = orbiterFeeUSD/amount;
-          const orbiterTime = orbiterQuote.time;
-          const orbiterSlippageUSD = orbiterQuote.slippageUSD;
-          const orbiterSlippagePerc = orbiterSlippageUSD/amount;
-          const orbiterRecievedAmount = orbiterQuote.receivedAmount;
-          const orbiterOpportunityIndex = calculateOpportunityIndex(fromChainId);
-          const orbiterTotalCostsUSD = orbiterFeeUSD + orbiterSlippageUSD;
-          const orbiterTotalCostsPerc = orbiterTotalCostsUSD/amount;
-          let fromChainIDCorrected = "";
-          let toChainIDCorrected = "";
-
-          if (fromChainId == 1151111081099710){
-            fromChainIDCorrected = "SOLANA_MAIN";
-          }
-          else {
-            if (fromChainId == 00100){
-              fromChainIDCorrected = "SUI_MAIN";
-            }
-            else{
-              fromChainIDCorrected = fromChainId;
-            }
-          }
-          
-          if (toChainId == 1151111081099710){
-            toChainIDCorrected = "SOLANA_MAIN";
-          }
-          else {
-            if (toChainId == 00100){
-              toChainIDCorrected = "SUI_MAIN";
-            }
-            else{
-              toChainIDCorrected = toChainId;
-            }
-          }
-
-          sheet.appendRow([
-            ID,
-            currentTime,
-            fromChainName,
-            toChainName,
-            amount,
-            orbiterFeeUSD,
-            orbiterFeePerc,
-            orbiterTime,
-            `Orbiter`,
-            orbiterSlippageUSD,
-            orbiterSlippagePerc,
-            orbiterRecievedAmount,
-            orbiterTotalCostsUSD,
-            orbiterTotalCostsPerc,
-            `https://orbiter.finance/en?src_chain=${fromChainIDCorrected}&tgt_chain=${toChainIDCorrected}&src_token=USDC`,
-            80,
-            orbiterOpportunityIndex,
-          ]);
-
-          Logger.log(`✅ Data written for route: ${fromChainName} -> ${toChainName} with amount: ${amount}`);
-        }
-      }
-    }
-  }
-
-  //Relay update block
-  for (const fromChainId of relayChains) {
-    for (const toChainId of relayChains) {
-      if (fromChainId !== toChainId) {
-      Logger.log(`🔄 Relay route: ${getChainName(fromChainId)} -> ${getChainName(toChainId)}`);
-      const currentTime = new Date().toUTCString();
-      const fromChainName = getChainName(fromChainId);
-      const toChainName = getChainName(toChainId);
-      if (fromChainName === "unknown" || toChainName === "unknown") {
-        Logger.log(`❌ ERROR: Unknown chain detected for route from ${getChainName(fromChainId)} to ${getChainName(toChainId)}`);
-        continue;
-      }
-        for (const amount of BRIDGING_AMOUNTS) {
-          ID = ID+1;
-          const relayQuote = getRelayQuote(fromChainId, toChainId, amount);
-          const relayFeeUSD = relayQuote.totalFees;
-          const relayFeePerc = relayFeeUSD/amount;
-          const relaBridgeTime = relayQuote.bridgeTime;
-          const relaySlippageUSD = relayQuote.slippageUSD;
-          const relaySlippagePerc = relaySlippageUSD/amount;
-          const relayRecievedAmount = relayQuote.receivedAmount;
-          const relayOpportunityIndex = calculateOpportunityIndex(fromChainId);
-          const relayTotalCostsUSD = relayFeeUSD + relaySlippageUSD;
-          const relayTotalCostsPerc = relayTotalCostsUSD/amount;
-          
-          sheet.appendRow([
-            ID,
-            currentTime,
-            fromChainName,
-            toChainName,
-            amount,
-            relayFeeUSD,
-            relayFeePerc,
-            relaBridgeTime,
-            `Relay`,
-            relaySlippageUSD,
-            relaySlippagePerc,
-            relayRecievedAmount,
-            relayTotalCostsUSD,
-            relayTotalCostsPerc,
-            `https://www.relay.link/bridge/${toChainName}?fromChainId=${fromChainId}&fromCurrency=${RELAY_USDC_ADDRESSES[fromChainId]}&amount=${amount}&toCurrency=${RELAY_USDC_ADDRESSES[toChainId]}`,
-            80,
-            relayOpportunityIndex,
-          ]);
-
-          Logger.log(`✅ Data written for route: ${fromChainName} -> ${toChainName} with amount: ${amount}`);
-        }
-      }
-    }
-  }
-      
-  analyzeWithOpenAI(sheet);
+  //analyzeWithOpenAI(sheet); // add cahtGPT analyzis
   setColumnAlignment(sheet);
-  sortByColumn(sheet,14);
+  //sortByColumn(sheet,14);
   
   Logger.log("✅ Bridging data update completed.");
 }
@@ -701,6 +594,8 @@ function getChainName(chainId) {
     1151111081099710: "solana",
     792703809: "solana", // for Relay aggregator
     00100: "sui",
+    SOLANA_MAIN: "solana",
+    SUI_MAIN: "sui",
   };
 
   if (!chainId) {
@@ -804,44 +699,6 @@ function fetchJsonWithRetries(url, maxRetries, delayMs) {
     }
   }
 }
-
-// Send to chatGPT each row of a bridge data (it is slow and done for every row)
-// function analyzeWithOpenAI(data) {
-//   //const prompt = `Analyze the following bridging data for potential opportunities: ${JSON.stringify(data)}`;
-//   const prompt = `You're an expert AI advisor that helps me to choose the best crypto bridge routes. Give a concise, user-friendly summary (under 2 sentences) of that bridge route:  ${JSON.stringify(data)}. Focus on the benefits or downsides for the user, such as speed, cost-efficiency, reliability, rumors of the future airdrops. Mark three that on your opinion are the best from the whole world data you have. At the start give your numerical evaluation from 0 to 100, where 0 is the worst bridge ever and 100 - higly recommended`;
-
-//   const requestBody = {
-//     model: "gpt-4-turbo",
-//     messages: [
-//       {
-//         role: "user",
-//         content: prompt
-//       }
-//     ],
-//     max_tokens: 1000,
-//     temperature: 0.7
-//   };
-
-//   const response = UrlFetchApp.fetch('https://api.openai.com/v1/chat/completions', {
-//     method: 'post',
-//     headers: {
-//       'Authorization': `Bearer ${OPENAI_API_KEY}`,
-//       'Content-Type': 'application/json'
-//     },
-//     payload: JSON.stringify(requestBody),
-//     muteHttpExceptions: true
-//   });
-  
-//   const result = JSON.parse(response.getContentText());
-  
-//   if (result.error) {
-//     Logger.log('❌ OpenAI API Error: ' + JSON.stringify(result.error));
-//     return `Error: ${result.error.message}`;
-//   }
-
-//   return result.choices[0].message.content.trim();
-// }
-
 
 async function analyzeWithOpenAI(sheet) {
   const data = sheet.getDataRange().getValues();
