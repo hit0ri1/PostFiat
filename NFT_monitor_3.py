@@ -6,10 +6,10 @@ from collections import deque
 MAGICEDEN_EVM_API_URL = "https://api-mainnet.magiceden.dev/v3/rtp/ethereum/users/{wallet_address}/tokens/v7?normalizeRoyalties=false&sortBy=acquiredAt&sortDirection=desc&limit=100&includeTopBid=false&includeAttributes=false&includeLastSale=false&includeRawData=true&filterSpamTokens=true&useNonFlaggedFloorAsk=false"
 
 # Telegram Config
-TELEGRAM_BOT_TOKEN = "7539585423:AAHaS4keQ73kTiMtzsc_-bcst2hgxyrrWTM"
-TELEGRAM_CHAT_ID = "436804823"
-WALLET_ADDRESS = "0x7075f3b9C1c9fB099D000Ebb7676B1A972c2348E"
-API_KEY = "YOUR_API_KEY"  # Replace with your Magic Eden API key
+TELEGRAM_BOT_TOKEN = ""
+TELEGRAM_CHAT_ID = ""
+WALLET_ADDRESS = ""
+API_KEY = ""  # Replace with your Magic Eden API key
 
 # Keywords to scan in metadata
 KEYWORDS = ["orbiter", "jumper", "relay", "stargate"]
