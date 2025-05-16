@@ -2,6 +2,7 @@ import time
 import requests
 import json
 from collections import deque
+from moralis import evm_api
 #from telegram import Bot
 
 # API URLs
@@ -11,32 +12,40 @@ MAGICEDEN_EVM_API_URL = "https://api-mainnet.magiceden.dev/v2/evm/collections/{c
 
 TELEGRAM_BOT_TOKEN = ""
 TELEGRAM_CHAT_ID = ""
+MORALIS_API_KEY = ""
+
 
 # Assign marketplaces per collection
 NFT_PROJECTS = {
     "gemesis": {
         "opensea": "gemesis",
-        "magiceden": "gemesis"
+        "magiceden": "gemesis",
+        "blur": "0xbe9371326f91345777b04394448c23e2bfeaa826"
     },
     "finalbosu": {
         "opensea": "finalbosu",
         # no Magic Eden yet
+        "blur": "0xb792864e4659d0b8076f9c6912c228f914ec66d4"
     },
     "memelandcaptainz": {
         "opensea": "memelandcaptainz",
-        "magiceden": "memelandcaptainz"
+        "magiceden": "memelandcaptainz",
+        "blur": "0x769272677fab02575e84945f03eca517acc544cc"
     },
     "lilpudgys": {
         "opensea": "lilpudgys",
-        "magiceden": "lilpudgys"
+        "magiceden": "lilpudgys",
+        "blur": "0x524cab2ec69124574082676e6f654a18df49a048"
     },
     "pudgypenguins": {
         "opensea": "pudgypenguins",
-        "magiceden": "pudgypenguins"
+        "magiceden": "pudgypenguins",
+        "blur": "0xbd3531da5cf5857e7cfaa92426877b022e612cf8"
     },
     "pudgyrods": {
         "opensea": "pudgyrods",
-        "magiceden": "pudgyrods"
+        "magiceden": "pudgyrods",
+        "blur": "0x062e691c2054de82f28008a8ccc6d7a1c8ce060d"
     }
 }
 
@@ -45,7 +54,7 @@ RISE_THRESHOLD = 0.0001  # 0.1% up
 FALL_THRESHOLD = -0.0001  # 0.1% down
 CHECK_INTERVAL = 300  # Check for new price interval, in seconds
 SPIKE_TIME_WINDOW = 3600  # how long historical prices will be saved, in seconds
-ARBITRAGE_THRESHOLD = 0.0001 # difference in floor prices between marketplaces lower than that value will be ignored
+ARBITRAGE_THRESHOLD = 0.001 # difference in floor prices between marketplaces lower than that value will be ignored
 
 # History prices -> { collection_slug: { marketplace: deque([(timestamp, price), ...]) } }
 historical_prices = {}
@@ -56,7 +65,7 @@ def get_floor_and_volume(slug, source):
         collection_identifier = NFT_PROJECTS[slug][source]  # this must be here ✅
 
         if source == "opensea":
-            headers = {"X-API-KEY": ""}
+            headers = {"X-API-KEY": "b40b29e1513c4137952736a1a072e8d8"}
             url = OPENSEA_API_URL.format(collection_slug=collection_identifier)
             #print(f"Opensea URL {url}")
             response = requests.get(url, headers=headers)
@@ -86,15 +95,21 @@ def get_floor_and_volume(slug, source):
             else:
                 print(f"[Magic Eden] Error for {slug}: {response.status_code}")
 
-        #elif source == "blur":
-        #    url = BLUR_API_URL.format(collection_slug=slug)
-        #    response = requests.get(url)
-        #    if response.status_code == 200:
-        #        data = response.json()
-        #        print(f"{slug} on Blur. Current floor price is {float(data['floorPrice']) / 1e18}")
-        #        return float(data["floorPrice"]) / 1e18
-        #    else:
-        #        print(f"[Blur] Error for {slug}: {response.status_code}")
+        elif source == "blur":
+            # You must store contract address in NFT_PROJECTS for 'blur'
+            contract_address = collection_identifier
+            url = f"https://deep-index.moralis.io/api/v2.2/nft/{contract_address}/metadata"
+            headers = {"X-API-Key": MORALIS_API_KEY}
+            response = requests.get(url, headers=headers)
+            if response.status_code == 200:
+                data = response.json()
+                floor_price = float(data.get("floor_price", 0))  # This key may not be returned, fallback to 0
+                one_day_volume = float(data.get("volume_24h", 0))  # Same here
+                #print(f"[Blur] Fetched floor: {floor_price} ETH | Volume: {one_day_volume} ETH")
+                return floor_price, one_day_volume
+            else:
+                print(f"[Blur/Moralis] Error for {slug}: {response.status_code}, {response.text}")
+
 
     except Exception as e:
         print(f"Exception while fetching {slug} from {source}: {e}")
@@ -196,7 +211,7 @@ def check_arbitrage(slug, floor_prices, offer_prices):
         diff = max_offer_price - min_floor_price
 
         print(f"Arbitrage check for [{slug}]: offer: {max_offer_price:.4f} ETH ({max_offer_source}), floor: {min_floor_price:.4f} ETH ({min_floor_source})")
-
+        #diff = 10 # this line for testing telegram notofocations only
         if diff >= ARBITRAGE_THRESHOLD:
             print(f"💰 Arbitrage opportunity on [{slug}]!")
             print(f"📈 Top offer on {max_offer_source.capitalize()}: {max_offer_price:.4f} ETH")
