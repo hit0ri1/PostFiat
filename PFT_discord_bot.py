@@ -13,8 +13,6 @@ GOOGLE_SHEET_FILE_NAME = 'Bridge spreadsheet'
 GOOGLE_SHEET_NAME = 'PFT_tasks_compilation_2'
 JSON_KEY_PATH = 'HIDDEN_FOR_SECURITY_REASONS'
 
-#logging.basicConfig(level=logging.DEBUG)
-
 # Google Sheets setup
 scope = [
     "https://spreadsheets.google.com/feeds",
@@ -83,10 +81,18 @@ async def scan_channel_periodically():
                         memo_type, memo_text = [part.strip() for part in full_memo.split('___', 1)]
                     else:
                         memo_type, memo_text = full_memo, ""
-
+                    
                     # Normalize memo type
                     memo_type = memo_type.upper()
 
+                    # Detect bridge costs in memo_text
+                    bridge_costs_match = re.search(r"total costs[:\s]*([0-9]*\.?[0-9]+)", memo_text, re.IGNORECASE)
+
+                    if bridge_costs_match:
+                        bridge_costs = bridge_costs_match.group(1)
+                    else:
+                        bridge_costs = "Not a bridging task, no bridging costs"
+                    
                     amount = float(amount_match.group(1))
 
                     # Determine sign
@@ -102,7 +108,7 @@ async def scan_channel_periodically():
                     amount_str = f"{amount:+.1f}"  # Force sign
 
                     # Save to Google Sheet
-                    sheet.append_row([user, date, task_id, memo_type, memo_text, amount_str, str(datetime.utcnow())])
+                    sheet.append_row([user, date, task_id, memo_type, memo_text, amount_str, bridge_costs, str(datetime.utcnow())])
                     print(f"✅ Task {task_id} by {user} recorded: {memo_type}, {amount_str} PFT.")
                     seen_message_ids.add(message.id)
 
